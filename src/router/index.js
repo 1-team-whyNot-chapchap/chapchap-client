@@ -1,5 +1,17 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { pageCatalog } from './pageCatalog'
+import { authSession } from '../common/api/http.js'
+import { createAccessGuard } from '../domains/auth/routeAccess.js'
+import { loginPath } from '../domains/auth/authSession.js'
+
+// 서버의 /auth/callback 리다이렉트를 hash router 경로로 변환한다.
+// 전달받은 문자열로 외부 이동 경로를 만들지 않는다.
+if (window.location.pathname === '/auth/callback') {
+  const query = new URLSearchParams(window.location.search)
+  const safe = new URLSearchParams()
+  for (const key of ['code', 'signupSessionId']) if (query.has(key)) safe.set(key, query.get(key))
+  window.history.replaceState(null, '', `/#/auth/callback${safe.size ? `?${safe}` : ''}`)
+}
 
 // 동적 import는 방문한 페이지의 코드만 내려받아 첫 화면의 파일 크기를 줄입니다.
 const AddressFormPage = () => import('../domains/customer/pages/AddressFormPage.vue')
@@ -105,6 +117,18 @@ const adminRoutes = pageCatalog
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    {
+      path: '/auth/callback',
+      name: 'auth-callback',
+      component: () => import('../domains/auth/pages/AuthCallbackPage.vue'),
+      meta: { layout: 'minimal' },
+    },
+    {
+      path: '/admin/password/initial',
+      name: 'admin-initial-password',
+      component: AdminPasswordPage,
+      meta: { layout: 'minimal' },
+    },
     { path: '/', name: 'home', component: HomePage },
     { path: '/help/chat', name: 'consultation-design', component: ConsultationDesignPage },
     { path: '/help/faq', name: 'faq-design', component: FaqDesignPage },
@@ -556,6 +580,13 @@ const router = createRouter({
       meta: { layout: 'minimal' },
     },
   ],
+})
+
+router.beforeEach(createAccessGuard(authSession))
+authSession.onExpired(() => {
+  const path = router.currentRoute.value.path
+  if (path !== '/auth/callback' && !path.endsWith('/login'))
+    router.replace({ path: loginPath(path), query: { reason: 'expired' } })
 })
 
 export default router
