@@ -1,11 +1,19 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useRiderPreviewStore } from '../riderPreviewStore'
 import RiderNavigation from '../components/RiderNavigation.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import '../rider-wire.css'
+import http from '../../../common/api/http.js'
+import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
 const store = useRiderPreviewStore()
+const api = createDeliveryExecutionApi(http)
+const assignments = ref([])
+async function load() {
+  assignments.value = (await api.listAssignments()).items
+}
+onMounted(load)
 const quantity = computed(() => store.deliveries.reduce((total, row) => total + row.quantity, 0))
 const status = computed(() =>
   store.workStarted ? '근무 중' : store.assignment.confirmed ? '확인 완료' : '확인 필요',
@@ -34,33 +42,35 @@ const status = computed(() =>
       </dl>
       <div class="rider-wire-list-heading">
         <h2>배정 목록</h2>
-        <p>{{ store.assignment.date }} · {{ store.assignment.slot }}</p>
+        <p>
+          {{
+            assignments[0]
+              ? `${assignments[0].deliveryDate} · ${assignments[0].deliverySlot}`
+              : '배정 없음'
+          }}
+        </p>
       </div>
       <section class="rider-wire-assignments" aria-label="배정 목록">
         <div class="rider-wire-table-head">
           <span>순서 / 배송 지역</span><span>전달 방식</span><span>수량</span><span>상세</span>
         </div>
         <article
-          v-for="(delivery, index) in store.deliveries"
-          :key="delivery.id"
+          v-for="(assignment, index) in assignments"
+          :key="assignment.assignmentId"
           class="rider-wire-row"
         >
           <div class="rider-wire-place">
-            <strong
-              >{{ index + 1 }} · {{ delivery.address.split(' ').slice(0, 2).join(' ') }}</strong
-            ><small>{{
-              store.workStarted ? delivery.status : '근무 시작 후 상세 확인 가능'
-            }}</small>
+            <strong>{{ index + 1 }} · 배정 {{ assignment.assignmentId }}</strong
+            ><small>{{ assignment.status }}</small>
           </div>
-          <span>{{ delivery.method }}</span
-          ><strong>{{ delivery.quantity }}개</strong>
+          <span>{{ assignment.deliverySlot }}</span
+          ><strong>{{ assignment.lunchboxQuantity }}개</strong>
           <RouterLink
             v-if="store.workStarted"
             class="button button-secondary"
             :to="{
-              name: 'rider-delivery-detail',
-              params: { deliveryId: delivery.id },
-              query: { assignmentId: store.assignment.id },
+              name: 'rider-assignment-detail',
+              params: { assignmentId: assignment.assignmentId },
             }"
             >상세</RouterLink
           >
