@@ -43,6 +43,9 @@ watch(
   () => {
     requestId++
     results.value = []
+    page.value = 0
+    total.value = 0
+    hasNext.value = false
     state.value = 'idle'
     error.value = ''
     resetSelection()
