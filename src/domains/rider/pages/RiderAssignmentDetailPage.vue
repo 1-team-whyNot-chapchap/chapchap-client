@@ -7,15 +7,23 @@ import { useRiderPreviewStore } from '../riderPreviewStore'
 import RiderNavigation from '../components/RiderNavigation.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import { dialogPt } from '../../../common/constants/primeUiPt'
+import http from '../../../common/api/http.js'
+import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
 const route = useRoute()
 const store = useRiderPreviewStore()
 const valid = computed(() => route.params.assignmentId === store.assignment.id)
 const isIssueOpen = ref(false)
 const issue = ref('')
 const notice = ref('')
-function confirm() {
-  store.assignment.confirmed = true
-  notice.value = '예시 확인 상태만 반영했어요. 관리자 최종 확정이나 실제 배정 확인은 아닙니다.'
+const api = createDeliveryExecutionApi(http)
+async function confirm() {
+  try {
+    await api.acknowledgeAssignment(route.params.assignmentId)
+    store.assignment.confirmed = true
+    notice.value = '배정 확인을 저장했습니다.'
+  } catch (failure) {
+    notice.value = failure.message || '배정 확인을 저장하지 못했습니다.'
+  }
 }
 function saveIssue() {
   if (!issue.value.trim()) return
