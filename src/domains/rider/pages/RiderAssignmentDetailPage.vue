@@ -39,6 +39,18 @@ async function saveIssue() {
     notice.value = failure.message || '이슈를 보고하지 못했습니다.'
   }
 }
+async function failRemaining() {
+  if (!window.confirm('남은 배송을 모두 긴급 실패 처리할까요?')) return
+  try {
+    await api.failRemainingDeliveries(route.params.assignmentId, {
+      failureCode: 'EMERGENCY',
+      itemRecovered: false,
+    })
+    notice.value = '남은 배송을 긴급 실패 처리했습니다.'
+  } catch (failure) {
+    notice.value = failure.message || '긴급 실패 처리를 완료하지 못했습니다.'
+  }
+}
 </script>
 <template>
   <div class="workspace-ui rider-workspace design-review-page">
@@ -93,7 +105,7 @@ async function saveIssue() {
         </section>
         <div class="ui-actions">
           <button class="button button-secondary" @click="isIssueOpen = true">배정 이슈 보고</button
-          ><button class="button button-secondary" disabled>긴급 일괄 실패 · 연결 전</button>
+          ><button class="button button-secondary" @click="failRemaining">긴급 일괄 실패</button>
         </div>
       </div>
       <div v-else class="ui-empty">
