@@ -1,13 +1,20 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { customerApi as api } from '../api/customerApi.js'
 import { useCustomerRequest } from '../useCustomerRequest.js'
 import RequestStatus from './RequestStatus.vue'
+import http, { authSession } from '../../../common/api/http.js'
+import { createNotificationStream } from '../realtime/notificationStream.js'
 const { busy, error, notice, run } = useCustomerRequest()
 const rows = ref([])
 const reload = () =>
   run(async () => {
-    rows.value = await api.notifications()
+    const fetched = await api.notifications()
+    rows.value = [
+      ...new Map(
+        [...rows.value, ...fetched].map((row) => [String(row.notificationId), row]),
+      ).values(),
+    ].sort((a, b) => String(b.occurredAt).localeCompare(String(a.occurredAt)))
   })
 function read(row) {
   run(async () => {
@@ -18,13 +25,70 @@ function read(row) {
 function readAll() {
   run(async () => {
     await api.readAllNotifications()
-    rows.value = await api.notifications()
+    const fetched = await api.notifications()
+    rows.value = [
+      ...new Map(
+        [...rows.value, ...fetched].map((row) => [String(row.notificationId), row]),
+      ).values(),
+    ].sort((a, b) => String(b.occurredAt).localeCompare(String(a.occurredAt)))
   })
 }
-onMounted(reload)
+const streamState = ref('closed')
+const stream = createNotificationStream({
+  open: async (signal) => {
+    await authSession.ensureSession()
+    return http.get('/api/customer/notifications/stream', {
+      adapter: 'fetch',
+      responseType: 'stream',
+      timeout: 0,
+      signal,
+    })
+  },
+  onState: (state) => {
+    streamState.value = state
+  },
+  onConnected: reload,
+  onNotification: (row) => {
+    const index = rows.value.findIndex(
+      (item) => String(item.notificationId) === String(row.notificationId),
+    )
+    if (index < 0) rows.value.unshift(row)
+    else rows.value[index] = { ...row, read: row.read || rows.value[index].read }
+  },
+})
+function startStream() {
+  if (authSession.state.user?.role === 'CUSTOMER') stream.start()
+  else stream.stop()
+}
+watch(
+  () => `${authSession.state.user?.userId}:${authSession.state.user?.role}`,
+  () => {
+    rows.value = []
+    startStream()
+  },
+)
+onMounted(() => {
+  reload()
+  startStream()
+})
+onUnmounted(() => stream.stop())
 </script>
 <template>
   <section class="ui-stack">
+    <p v-if="authSession.state.user?.role === 'CUSTOMER'" role="status">
+      {{
+        {
+          connected: '실시간 알림 연결됨',
+          connecting: '알림 연결 중',
+          reconnecting: '알림 연결 복구 중',
+          failed: '알림 연결을 확인해 주세요.',
+          closed: '알림 연결 종료',
+        }[streamState]
+      }}
+    </p>
+    <button v-if="streamState === 'failed'" class="button button-secondary" @click="startStream">
+      다시 연결
+    </button>
     <div class="ui-actions">
       <button class="button button-secondary" :disabled="busy" @click="reload">새로고침</button
       ><button
