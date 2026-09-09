@@ -1,17 +1,20 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import SelectButton from 'primevue/selectbutton'
 import DatePicker from 'primevue/datepicker'
 import AdminFrame from '../components/AdminFrame.vue'
 import OperationReviewDialog from '../components/OperationReviewDialog.vue'
-import { useAdminDeliveryPreviewStore } from '../adminDeliveryPreview'
+import http from '../../../common/api/http.js'
+import { createAdminRiderManagementApi } from '../api/adminRiderManagementApi.js'
 import { selectButtonPt, datePickerPt } from '../../../common/constants/primeUiPt'
 const route = useRoute()
-const store = useAdminDeliveryPreviewStore()
-const rider = computed(() =>
-  store.riderContext?.id === route.params.riderId ? store.riderContext : null,
-)
+const api = createAdminRiderManagementApi(http)
+const rider = computed(() => ({ id: route.params.riderId, name: `라이더 ${route.params.riderId}` }))
+const schedules = ref([])
+async function load() {
+  schedules.value = await api.listWeeklySchedules(route.params.riderId)
+}
 const tab = ref('주간 일정')
 const open = ref(false)
 const day = ref('월요일')
@@ -23,6 +26,8 @@ function openForm() {
   dates.value = null
   open.value = true
 }
+watch(() => route.params.riderId, load)
+onMounted(load)
 </script>
 <template>
   <AdminFrame
@@ -67,10 +72,10 @@ function openForm() {
           <button class="button button-secondary" @click="openForm">{{ tab }} 검토</button>
         </div>
         <ul v-if="tab === '주간 일정'" class="ui-list">
-          <li v-for="d in ['월요일', '수요일', '금요일']" :key="d" class="ui-list-item">
+          <li v-for="d in schedules" :key="d.weeklyScheduleId" class="ui-list-item">
             <div>
-              <strong>{{ d }}</strong>
-              <p>점심 일정</p>
+              <strong>{{ d.dayOfWeek }}요일</strong>
+              <p>{{ d.deliverySlot }}</p>
             </div>
           </li>
         </ul>
