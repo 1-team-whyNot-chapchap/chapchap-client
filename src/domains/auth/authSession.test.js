@@ -141,3 +141,50 @@ test('late refresh cannot restore explicitly cleared authentication', async () =
   await assert.rejects(pending)
   assert.equal(session.state.user, null)
 })
+
+test('logout renews expired access and revokes server session before clearing identity', async () => {
+  let refreshes = 0
+  let expiredAccess = false
+  let usableSession = true
+  let logoutReached = 0
+  const { session, calls } = clients(async (config) => {
+    if (config.url.endsWith('reissue-token')) {
+      if (!usableSession) return { status: 401 }
+      expiredAccess = false
+      return { accessToken: `token-${++refreshes}` }
+    }
+    if (config.url.endsWith('/logout')) {
+      if (expiredAccess) return { status: 401 } // Gateway rejects before Auth.
+      logoutReached++
+      usableSession = false // Auth revokes session and expires cookie.
+      return {}
+    }
+    return user('ADMIN')
+  })
+  await session.ensureSession()
+  expiredAccess = true
+  await session.logout()
+  assert.equal(refreshes, 2)
+  assert.equal(logoutReached, 1)
+  assert.equal(calls.filter((call) => call.url.endsWith('/logout')).length, 2)
+  assert.equal(session.state.user, null)
+  await assert.rejects(session.ensureSession())
+  assert.equal(session.state.user, null)
+})
+
+test('logout stops after failed refresh and cannot restore a revoked session', async () => {
+  let revoked = false
+  const { session, calls } = clients(async (config) => {
+    if (config.url.endsWith('reissue-token'))
+      return revoked ? { status: 401 } : { accessToken: 'token' }
+    if (config.url.endsWith('/logout')) return { status: 401 }
+    return user()
+  })
+  await session.ensureSession()
+  revoked = true
+  await assert.rejects(session.logout())
+  assert.equal(calls.filter((call) => call.url.endsWith('/logout')).length, 1)
+  assert.equal(calls.filter((call) => call.url.endsWith('reissue-token')).length, 2)
+  assert.equal(session.state.user, null)
+  await assert.rejects(session.ensureSession())
+})

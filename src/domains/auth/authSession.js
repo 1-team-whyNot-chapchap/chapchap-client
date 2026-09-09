@@ -145,7 +145,8 @@ export function createAuthSession(http, authHttp) {
       // 쿠키 회전이 끝난 뒤 종료하여 늦게 온 refresh 응답이 쿠키를 되살리지 않게 한다.
       if (refreshPromise) await refreshPromise.catch(() => {})
       try {
-        await http.post('/api/auth/logout', null, { skipAuthRetry: true })
+        // 만료된 access token은 한 번 갱신하여 서버 세션과 HttpOnly 쿠키까지 폐기한다.
+        await http.post('/api/auth/logout', null)
       } finally {
         clear()
       }
