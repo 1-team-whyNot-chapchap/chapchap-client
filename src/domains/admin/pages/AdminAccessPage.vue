@@ -1,6 +1,12 @@
 <script setup>
 import { ref } from 'vue'
 import { KeyRound, LockKeyhole, ShieldAlert } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { authSession } from '../../../common/api/http.js'
+import { roleHome } from '../../auth/authSession.js'
+const router = useRouter()
+const route = useRoute()
+const busy = ref(false)
 
 const props = defineProps({
   mode: {
@@ -29,10 +35,21 @@ const stateMessages = {
   },
 }
 
-function submitLogin() {
-  // 실제 서비스에서는 서버가 관리자 권한을 확인한 뒤 대시보드로 이동시켜야 합니다.
-  password.value = ''
-  notice.value = '로그인 서비스 연결 전입니다. 실제 인증은 진행되지 않았습니다.'
+async function submitLogin() {
+  if (busy.value || !username.value || !password.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    const result = await authSession.loginAdmin(username.value, password.value)
+    await router.replace(
+      result.mustChangePassword ? '/admin/password/initial' : roleHome(result.user.role),
+    )
+  } catch {
+    notice.value = '로그인하지 못했습니다. 계정 정보와 상태를 확인한 뒤 다시 시도해 주세요.'
+  } finally {
+    password.value = ''
+    busy.value = false
+  }
 }
 </script>
 
@@ -42,6 +59,12 @@ function submitLogin() {
       <span class="admin-access-card__mark"><KeyRound :size="24" aria-hidden="true" /></span>
       <h1>관리자 로그인</h1>
       <p>운영 권한이 있는 계정으로 로그인해 주세요.</p>
+      <p v-if="route.query.reason === 'expired'" class="ui-note" role="status">
+        로그인이 만료되었습니다. 다시 로그인해 주세요.
+      </p>
+      <p v-if="route.query.reason === 'password-changed'" class="ui-note" role="status">
+        비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.
+      </p>
 
       <p v-if="notice" class="ui-note" role="status">{{ notice }}</p>
       <form class="admin-login-form" @submit.prevent="submitLogin">
@@ -54,6 +77,7 @@ function submitLogin() {
             maxlength="50"
             autocomplete="username"
             required
+            :disabled="busy"
           />
         </label>
         <label>
@@ -64,16 +88,18 @@ function submitLogin() {
             maxlength="64"
             autocomplete="current-password"
             required
+            :disabled="busy"
           />
         </label>
-        <button class="button button-primary" type="submit" :disabled="!username || !password">
-          로그인
+        <button
+          class="button button-primary"
+          type="submit"
+          :disabled="busy || !username || !password"
+        >
+          {{ busy ? '로그인 중…' : '로그인' }}
         </button>
       </form>
 
-      <button class="text-button" type="button" @click="emit('navigate', 'admin-accounts')">
-        계정 관리 디자인 보기
-      </button>
       <button class="text-button" type="button" @click="emit('navigate', 'home')">
         고객 화면으로 돌아가기
       </button>

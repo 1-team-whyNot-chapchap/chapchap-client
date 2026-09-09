@@ -1,8 +1,15 @@
 <script setup>
 import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
+import { socialLoginUrl } from '../../../common/api/http.js'
 import { Bike } from 'lucide-vue-next'
 const selectedProvider = ref('')
+const route = useRoute()
+function startSocial(provider) {
+  if (selectedProvider.value) return
+  selectedProvider.value = provider
+  window.location.assign(socialLoginUrl(provider))
+}
 </script>
 
 <template>
@@ -21,7 +28,8 @@ const selectedProvider = ref('')
           type="button"
           class="rider-social rider-kakao"
           aria-label="카카오로 로그인"
-          @click="selectedProvider = '카카오'"
+          :disabled="Boolean(selectedProvider)"
+          @click="startSocial('kakao')"
         >
           <img src="/images/social/kakao-login-ko-narrow.png" alt="" />
         </button>
@@ -29,7 +37,8 @@ const selectedProvider = ref('')
           type="button"
           class="rider-social rider-google"
           aria-label="Google로 로그인"
-          @click="selectedProvider = 'Google'"
+          :disabled="Boolean(selectedProvider)"
+          @click="startSocial('google')"
         >
           <img src="/images/social/google-signin-light.png" alt="" />
         </button>
@@ -37,8 +46,10 @@ const selectedProvider = ref('')
       <p class="rider-preview" role="status">
         {{
           selectedProvider
-            ? `${selectedProvider} 로그인을 선택했습니다. 실제 인증은 아직 연결되지 않았습니다.`
-            : '화면 미리보기 · 실제 소셜 로그인은 아직 연결되지 않았습니다.'
+            ? '소셜 로그인으로 이동하고 있습니다.'
+            : route.query.reason === 'expired'
+              ? '로그인이 만료되었거나 계정 상태가 바뀌었습니다. 다시 로그인해 주세요.'
+              : '로그인 후 현재 계정 역할에 맞는 화면으로 이동합니다.'
         }}
       </p>
       <section class="rider-guide" aria-labelledby="rider-registration-heading">
