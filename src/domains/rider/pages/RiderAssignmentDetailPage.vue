@@ -25,11 +25,19 @@ async function confirm() {
     notice.value = failure.message || '배정 확인을 저장하지 못했습니다.'
   }
 }
-function saveIssue() {
+async function saveIssue() {
   if (!issue.value.trim()) return
-  isIssueOpen.value = false
-  notice.value = '이슈 입력을 확인했습니다. 실제 보고는 전송하지 않았습니다.'
-  issue.value = ''
+  try {
+    await api.reportAssignmentIssue(route.params.assignmentId, {
+      issueCode: 'OTHER',
+      issueDetail: issue.value.trim(),
+    })
+    isIssueOpen.value = false
+    notice.value = '배정 이슈를 보고했습니다.'
+    issue.value = ''
+  } catch (failure) {
+    notice.value = failure.message || '이슈를 보고하지 못했습니다.'
+  }
 }
 </script>
 <template>
