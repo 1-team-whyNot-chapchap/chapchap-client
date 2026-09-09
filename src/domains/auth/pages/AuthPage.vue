@@ -244,7 +244,9 @@ function continueAfterSubmit() {
           </button>
         </p>
 
-        <p class="form-help">디자인 미리보기 · 실제 계정은 연결되지 않아요.</p>
+        <p v-if="pageId !== '002'" class="form-help">
+          디자인 미리보기 · 실제 계정은 연결되지 않아요.
+        </p>
       </section>
     </component>
   </div>
