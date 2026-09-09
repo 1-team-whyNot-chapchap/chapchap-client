@@ -129,12 +129,7 @@ export const useAppStore = defineStore('app', {
       },
     ],
 
-    memberProfile: {
-      name: '홍길동',
-      email: 'hong@example.com',
-      phone: '010-****-1234',
-      signInProvider: '챱챱 자체회원',
-    },
+    memberProfile: { name: '', email: '', phone: '', signInProvider: '' },
 
     paymentMethods: [
       {

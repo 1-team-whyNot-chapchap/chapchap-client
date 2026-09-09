@@ -1,6 +1,9 @@
 <script setup>
-import { LogOut, ShieldCheck, UserRoundX } from 'lucide-vue-next'
+import { ShieldCheck, UserRoundX } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+
+import { authSession } from '../../../common/api/http.js'
+import LogoutButton from '../../auth/components/LogoutButton.vue'
 
 const emit = defineEmits(['navigate'])
 </script>
@@ -19,17 +22,11 @@ const emit = defineEmits(['navigate'])
         <span><ShieldCheck :size="21" aria-hidden="true" /></span>
         <div>
           <strong>로그인 계정</strong>
-          <p>hong@example.com · 챱챱 자체회원</p>
+          <p>{{ authSession.state.user?.name || '로그인 정보 없음' }}</p>
         </div>
       </article>
 
-      <button type="button" @click="emit('navigate', 'login')">
-        <LogOut :size="20" aria-hidden="true" />
-        <span>
-          <strong>로그아웃</strong>
-          <small>현재 기기에서 로그인 상태를 종료합니다.</small>
-        </span>
-      </button>
+      <LogoutButton />
     </section>
 
     <section class="account-danger-zone">
@@ -40,7 +37,7 @@ const emit = defineEmits(['navigate'])
           <p>진행 중인 구독과 결제 예정 건을 먼저 확인해야 합니다.</p>
         </div>
       </div>
-      <button type="button" disabled>구독 이용 중에는 탈퇴할 수 없어요</button>
+      <button type="button" disabled>회원 탈퇴 기능 준비 중</button>
     </section>
   </div>
 </template>

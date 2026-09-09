@@ -1,24 +1,27 @@
 <script setup>
 import { ChevronRight, Clock3, MessageCircleQuestion } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { onMounted, ref } from 'vue'
+import { customerApi } from '../api/customerApi.js'
 import { RouterLink } from 'vue-router'
 
 const emit = defineEmits(['navigate'])
 
-const questions = [
-  [
-    '플랜 가격은 어디에서 확인하나요?',
-    '가격과 배송비는 구독 신청의 결제 전 확인 단계에서 안내됩니다.',
-  ],
-  [
-    '메뉴는 언제까지 바꿀 수 있나요?',
-    '각 회차의 주문 마감 전까지 변경할 수 있으며, 마감 후 버튼이 비활성화됩니다.',
-  ],
-  [
-    '배송 일정을 미룰 수 있나요?',
-    '회차당 한 번, 회차 상세 화면에서 가능한 날짜를 선택해 미룰 수 있습니다.',
-  ],
-]
+const questions = ref([])
+const loading = ref(false)
+const error = ref('')
+async function loadFaqs() {
+  loading.value = true
+  error.value = ''
+  try {
+    questions.value = (await customerApi.faqs()).slice(0, 3)
+  } catch {
+    error.value = '질문을 불러오지 못했어요. 다시 시도해 주세요.'
+  } finally {
+    loading.value = false
+  }
+}
+onMounted(loadFaqs)
 </script>
 
 <template>
@@ -56,7 +59,7 @@ const questions = [
       <article class="support-card">
         <Clock3 :size="24" aria-hidden="true" />
         <h2>운영 시간</h2>
-        <p>평일 10:00~17:00 · 주말과 공휴일 휴무</p>
+        <p>운영 시간 안내 준비 중</p>
         <span>운영 시간은 서비스 오픈 전 최종 확정됩니다.</span>
       </article>
     </section>
@@ -66,9 +69,15 @@ const questions = [
         <h2>자주 묻는 질문</h2>
         <RouterLink class="button button-secondary" to="/help/faq">질문 전체 보기</RouterLink>
       </div>
-      <article v-for="question in questions" :key="question[0]">
-        <strong>{{ question[0] }}</strong>
-        <p>{{ question[1] }}</p>
+      <p v-if="loading" role="status">질문을 불러오고 있어요.</p>
+      <div v-else-if="error" role="alert">
+        <p>{{ error }}</p>
+        <button class="button button-secondary" @click="loadFaqs">다시 시도</button>
+      </div>
+      <p v-else-if="!questions.length">등록된 질문이 없습니다.</p>
+      <article v-for="question in questions" :key="question.faqId">
+        <strong>{{ question.question }}</strong>
+        <p>{{ question.answer }}</p>
       </article>
     </section>
   </div>
