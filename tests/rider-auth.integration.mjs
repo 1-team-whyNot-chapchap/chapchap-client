@@ -12,10 +12,20 @@ assert.equal(new URL(baseURL).hostname, '127.0.0.1', 'Test server must use loopb
 
 function client(initialCookie = '') {
   let cookie = initialCookie
+  let logoutRequests = 0
   const create = () => {
     const http = axios.create({ baseURL, timeout: 5000, proxy: false })
     http.interceptors.request.use((config) => {
       if (cookie) config.headers.set('Cookie', cookie)
+      if (config.url === '/api/auth/logout') {
+        logoutRequests++
+        // First logout reaches the JWT boundary with a truly expired signed token.
+        if (logoutRequests === 1)
+          config.headers.set(
+            'Authorization',
+            `Bearer ${process.env.RIDER_TEST_EXPIRED_ACCESS_TOKEN}`,
+          )
+      }
       return config
     })
     const readCookie = (response) => {
@@ -41,6 +51,8 @@ function client(initialCookie = '') {
   return {
     http,
     authHttp,
+    cookie: () => cookie,
+    logoutRequests: () => logoutRequests,
     session: createAuthSession(http, authHttp),
     api: createRiderPromotionApi(http),
   }
@@ -76,7 +88,12 @@ assert.equal(
   await createAccessGuard(customer.session)({ path: '/admin/riders' }),
   '/rider/deliveries',
 )
+const cookieBeforeLogout = customer.cookie()
 await customer.session.logout()
+assert.equal(customer.logoutRequests(), 2)
+assert.equal(customer.cookie(), '')
+// Replaying the cookie held before logout cannot resurrect the revoked session.
+await assert.rejects(client(cookieBeforeLogout).session.ensureSession())
 await assert.rejects(customer.session.ensureSession())
 console.log(
   'Auth + frontend integration passed: search, promotion, revoked session, rider relogin, access denial, logout',
