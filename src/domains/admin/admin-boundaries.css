@@ -1,0 +1,41 @@
+/* Admin-only boundary hierarchy, shared by legacy pages and AdminFrame. */
+:is(.admin-layout, .admin-access-page) {
+  --color-border: color-mix(in srgb, var(--color-text) 25%, var(--color-surface));
+  --admin-divider: color-mix(in srgb, var(--color-text) 16%, var(--color-surface));
+  --admin-header-surface: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+.admin-layout .admin-main > .ui-heading {
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+.admin-layout .ops-toolbar {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.admin-layout
+  :is(.ui-surface, .admin-panel, .admin-kpi-card, .admin-editor-card, .admin-detail-card) {
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+.admin-layout .ui-surface > .ui-row:first-child {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--admin-divider);
+}
+.admin-layout .ui-table-heading {
+  background: var(--admin-header-surface);
+  border-bottom-color: var(--color-border);
+}
+.admin-layout .ui-table-cell:not(.ui-table-heading) {
+  border-bottom-color: var(--admin-divider);
+}
+.admin-layout .ui-list-item {
+  border-bottom-color: var(--admin-divider);
+}
+.admin-layout .ui-note + .ui-surface {
+  margin-top: var(--space-5);
+}
+.admin-layout .ops-pagination {
+  margin-top: var(--space-3);
+}

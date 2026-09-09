@@ -1,0 +1,125 @@
+.account-design {
+  max-width: 840px;
+  padding-bottom: var(--space-8);
+}
+.account-design h1,
+.account-design h2,
+.account-design h3,
+.account-design p {
+  margin: 0;
+}
+.account-design h1 {
+  font-size: var(--font-page-title);
+  line-height: var(--line-height-title);
+}
+.account-design h2 {
+  font-size: var(--font-section-title);
+  line-height: var(--line-height-compact);
+}
+.account-design h3 {
+  font-size: var(--font-item-title);
+}
+.intro {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 var(--space-6);
+}
+.intro p,
+.muted {
+  color: var(--color-text-muted);
+}
+.surface {
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+}
+.stack {
+  display: grid;
+  gap: var(--space-5);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.row > svg {
+  flex-shrink: 0;
+}
+.spread {
+  justify-content: space-between;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.actions .button {
+  flex: 1;
+  min-width: 120px;
+}
+.sample-note {
+  margin-top: var(--space-5) !important;
+  font-size: var(--font-caption);
+  color: var(--color-text-muted);
+}
+.notice {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  overflow-wrap: anywhere;
+}
+.error {
+  color: var(--color-text);
+  background: var(--color-danger-soft);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+}
+.text-action {
+  min-height: 44px;
+  padding: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-pressed);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.account-design input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-primary-pressed);
+  flex-shrink: 0;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  cursor: pointer;
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.account-design .button {
+  min-height: 48px;
+}
+.account-design svg {
+  vertical-align: middle;
+}
+.account-design :focus-visible {
+  outline: 3px solid var(--color-primary-pressed);
+  outline-offset: 4px;
+}
+@media (max-width: 760px) {
+  .surface {
+    padding: var(--space-5);
+  }
+}
+@media (max-width: 360px) {
+  .surface {
+    padding: var(--space-4);
+  }
+}
