@@ -12,8 +12,16 @@ const route = useRoute()
 const api = createAdminRiderManagementApi(http)
 const rider = computed(() => ({ id: route.params.riderId, name: `라이더 ${route.params.riderId}` }))
 const schedules = ref([])
+const exceptions = ref([])
+const areas = ref([])
 async function load() {
-  schedules.value = await api.listWeeklySchedules(route.params.riderId)
+  const riderId = route.params.riderId
+  schedules.value = await api.listWeeklySchedules(riderId)
+  areas.value = await api.listDeliveryAreas(riderId)
+  const now = new Date()
+  const from = `${now.getFullYear()}-01-01`
+  const to = `${now.getFullYear()}-12-31`
+  exceptions.value = await api.listScheduleExceptions(riderId, { dateFrom: from, dateTo: to })
 }
 const tab = ref('주간 일정')
 const open = ref(false)
@@ -79,20 +87,27 @@ onMounted(load)
             </div>
           </li>
         </ul>
-        <div v-else-if="tab === '예외 일정'" class="ui-empty">
-          <h3>등록된 예외 일정이 없습니다.</h3>
-          <p>주간 일정과 별도로 기간을 지정합니다.</p>
-        </div>
-        <dl v-else class="ui-details">
-          <div>
-            <dt>담당 지역</dt>
-            <dd>서초 1권역</dd>
-          </div>
-          <div>
-            <dt>유효 여부</dt>
-            <dd>실제 조회 연결 전</dd>
-          </div>
-        </dl>
+        <ul v-else-if="tab === '예외 일정'" class="ui-list">
+          <li v-for="item in exceptions" :key="item.exceptionId" class="ui-list-item">
+            <div>
+              <strong>{{ item.scheduleDate }} · {{ item.deliverySlot }}</strong>
+              <p>{{ item.isWorking ? '근무' : '휴무' }} · {{ item.reasonCode }}</p>
+            </div>
+          </li>
+          <li v-if="!exceptions.length" class="ui-empty">등록된 예외 일정이 없습니다.</li>
+        </ul>
+        <ul v-else class="ui-list">
+          <li v-for="item in areas" :key="item.riderDeliveryAreaId" class="ui-list-item">
+            <div>
+              <strong>{{ item.deliveryAreaCode }}</strong>
+              <p>
+                {{ item.effectiveFrom }} ~ {{ item.effectiveTo || '종료일 없음' }} ·
+                {{ item.isActive ? '활성' : '비활성' }}
+              </p>
+            </div>
+          </li>
+          <li v-if="!areas.length" class="ui-empty">담당 지역이 없습니다.</li>
+        </ul>
       </section>
       <aside class="ui-note ui-stack">
         <h2>배송 활성 변경</h2>
