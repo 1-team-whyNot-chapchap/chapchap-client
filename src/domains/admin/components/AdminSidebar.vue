@@ -34,7 +34,7 @@ const groups = [
     id: 'accounts',
     label: '계정·기록',
     items: [
-      { label: '라이더 계정', route: 'admin-rider-accounts' },
+      { label: '라이더 등록', route: 'admin-rider-accounts' },
       { label: '관리자 계정', route: 'admin-accounts' },
       { label: '사용자 역할', route: 'admin-role-management' },
       { label: '감사 이력', route: 'admin-audit-logs' },

@@ -152,7 +152,7 @@ function continueAfterSubmit() {
           </p>
           <p class="social-entry__note">처음 오셨나요? 같은 버튼으로 가입을 시작할 수 있어요.</p>
           <div class="rider-login-entry">
-            <p>관리자가 발급한 라이더 계정을 사용하시나요?</p>
+            <p>라이더로 등록하거나 배송 업무를 시작하시나요?</p>
             <RouterLink :to="{ name: 'rider-login' }">라이더 로그인</RouterLink>
           </div>
         </div>

@@ -88,7 +88,7 @@ const supportError = ref(false)
     <section class="ui-surface ui-stack">
       <h2>계정과 운영 기록</h2>
       <div class="ui-actions">
-        <RouterLink class="ops-link" to="/admin/riders">라이더 계정 발급·관리</RouterLink
+        <RouterLink class="ops-link" to="/admin/riders">라이더 등록·관리</RouterLink
         ><RouterLink class="ops-link" to="/admin/accounts">관리자 계정</RouterLink
         ><RouterLink class="ops-link" to="/admin/audit-logs">감사 이력</RouterLink
         ><RouterLink class="ops-link" to="/admin/password">비밀번호 변경</RouterLink>
