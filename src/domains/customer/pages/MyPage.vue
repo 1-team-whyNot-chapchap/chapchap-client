@@ -14,13 +14,8 @@ import {
 } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { formatDeliveryDate } from '../../../common/utils/date'
-import { planLabels } from '../../../common/constants/prototypeData'
-import { useAppStore } from '../../../stores/useAppStore'
-import { profilePhotoPreview } from '../profilePhotoPreview'
 
 const emit = defineEmits(['navigate'])
-const appStore = useAppStore()
 
 const links = [
   { label: '내 정보', detail: '이름과 연락처를 관리해요', icon: UserRound, route: 'wf-027' },
@@ -66,8 +61,7 @@ const links = [
       <section class="mypage-profile">
         <h1 class="sr-only">마이페이지</h1>
         <RouterLink class="profile-avatar" to="/mypage/profile" aria-label="프로필 사진 변경">
-          <img v-if="profilePhotoPreview" :src="profilePhotoPreview" alt="내 프로필 사진" />
-          <UserRound v-else :size="36" aria-hidden="true" />
+          <UserRound :size="36" aria-hidden="true" />
         </RouterLink>
         <button
           type="button"
@@ -82,11 +76,11 @@ const links = [
       <section class="account-metrics">
         <div>
           <span>현재 구독</span>
-          <strong>{{ planLabels[appStore.currentSubscription.planId] }} · 이용 중</strong>
+          <strong>구독 조회 준비 중</strong>
         </div>
         <div>
           <span>다음 배송</span>
-          <strong>{{ formatDeliveryDate(appStore.currentSubscription.dates.nextDelivery) }}</strong>
+          <strong>배송 조회 준비 중</strong>
         </div>
       </section>
 
