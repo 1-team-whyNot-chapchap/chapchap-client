@@ -1,14 +1,17 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import DatePicker from 'primevue/datepicker'
-import { useRiderPreviewStore } from '../riderPreviewStore'
 import RiderNavigation from '../components/RiderNavigation.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import { datePickerPt } from '../../../common/constants/primeUiPt'
 import '../rider-wire.css'
-const store = useRiderPreviewStore()
+import http from '../../../common/api/http.js'
+import { createRiderScheduleApi } from '../api/riderScheduleApi.js'
+const api = createRiderScheduleApi(http)
 const date = ref(new Date(2026, 8, 9))
+const schedules = ref([])
+const requests = ref([])
 const calendarPt = { ...datePickerPt, panel: 'ui-calendar rider-wire-calendar' }
 function dateKey(day) {
   return `${day.year}-${String(day.month + 1).padStart(2, '0')}-${String(day.day).padStart(2, '0')}`
@@ -16,14 +19,28 @@ function dateKey(day) {
 function stateFor(key) {
   const [year, month, day] = key.split('-').map(Number)
   if (new Date(year, month - 1, day).getDay() === 0) return { label: '휴무', style: 'off' }
-  const requests = store.offDayRequests.filter((request) => request.date === key)
-  if (requests.some((request) => request.status === '신청 중'))
+  const dayRequests = requests.value.filter((request) => request.leaveDate === key)
+  if (dayRequests.some((request) => request.status === 'PENDING'))
     return { label: '신청 중', style: 'pending' }
-  if (requests.some((request) => request.status === '승인')) return { label: '휴무', style: 'off' }
-  if (store.schedules.some((schedule) => schedule.date === key))
+  if (dayRequests.some((request) => request.status === 'APPROVED'))
+    return { label: '휴무', style: 'off' }
+  if (schedules.value.some((schedule) => schedule.date === key && schedule.isWorking))
     return { label: '근무', style: 'work' }
   return { label: '미등록', style: 'unknown' }
 }
+async function load() {
+  const year = date.value.getFullYear()
+  const month = String(date.value.getMonth() + 1).padStart(2, '0')
+  const last = new Date(year, date.value.getMonth() + 1, 0).getDate()
+  const response = await api.getSchedules({
+    dateFrom: `${year}-${month}-01`,
+    dateTo: `${year}-${month}-${last}`,
+  })
+  schedules.value = response.schedules
+  requests.value = await api.listLeaveRequests()
+}
+watch(date, load)
+onMounted(load)
 </script>
 <template>
   <div class="workspace-ui rider-workspace design-review-page rider-wire">
@@ -59,18 +76,18 @@ function stateFor(key) {
       <section class="ui-surface rider-wire-history" aria-label="휴무 신청 내역">
         <h2>신청 내역</h2>
         <article
-          v-for="request in store.offDayRequests"
-          :key="request.id"
+          v-for="request in requests"
+          :key="request.leaveRequestId"
           class="rider-wire-history-row"
         >
           <div>
-            <strong>{{ request.date }} · {{ request.slot }}</strong>
-            <p>{{ request.reason }}</p>
-            <p v-if="request.detail">{{ request.detail }}</p>
+            <strong>{{ request.leaveDate }} · {{ request.leaveSlot }}</strong>
+            <p>{{ request.leaveType }}</p>
+            <p v-if="request.reasonDetail">{{ request.reasonDetail }}</p>
           </div>
           <span class="mini-badge">{{ request.status }}</span>
         </article>
-        <p v-if="!store.offDayRequests.length">신청 내역이 없습니다.</p>
+        <p v-if="!requests.length">신청 내역이 없습니다.</p>
       </section>
     </DesignPreview>
   </div>
