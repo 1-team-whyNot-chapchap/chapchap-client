@@ -72,7 +72,7 @@ onMounted(load)
           <button class="button button-secondary" @click="openForm">{{ tab }} 검토</button>
         </div>
         <ul v-if="tab === '주간 일정'" class="ui-list">
-          <li v-for="d in schedules" :key="d.weeklyScheduleId" class="ui-list-item">
+          <li v-for="d in schedules" :key="d.scheduleId" class="ui-list-item">
             <div>
               <strong>{{ d.dayOfWeek }}요일</strong>
               <p>{{ d.deliverySlot }}</p>
