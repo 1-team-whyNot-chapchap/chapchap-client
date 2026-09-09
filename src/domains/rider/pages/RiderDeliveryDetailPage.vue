@@ -7,6 +7,8 @@ import { useRiderPreviewStore } from '../riderPreviewStore'
 import RiderNavigation from '../components/RiderNavigation.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import { dialogPt } from '../../../common/constants/primeUiPt'
+import http from '../../../common/api/http.js'
+import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
 const props = defineProps({ deliveryId: { type: String, required: true } })
 const route = useRoute()
 const store = useRiderPreviewStore()
@@ -25,6 +27,8 @@ const photo = ref(null)
 const photoError = ref('')
 const failure = ref('')
 const notice = ref('')
+const submitting = ref(false)
+const api = createDeliveryExecutionApi(http)
 const finished = computed(() => ['배송 완료', '배송 실패'].includes(delivery.value?.status))
 const canComplete = computed(
   () =>
@@ -43,10 +47,18 @@ watch(
     photo.value = null
   },
 )
-function start() {
+async function start() {
   if (delivery.value?.status !== '배송 준비') return
-  delivery.value.status = '배송 중'
-  notice.value = '예시 배송 중 상태입니다. 실제 배송 시작 요청은 전송하지 않았습니다.'
+  submitting.value = true
+  try {
+    const response = await api.startDelivery(delivery.value.id)
+    delivery.value.status = response.status === 'DELIVERING' ? '배송 중' : response.status
+    notice.value = '배송을 시작했습니다.'
+  } catch (failure) {
+    notice.value = failure.message || '배송을 시작하지 못했습니다.'
+  } finally {
+    submitting.value = false
+  }
 }
 function openComplete() {
   method.value = delivery.value.method
@@ -67,22 +79,51 @@ function selectPhoto(event) {
     photoError.value = 'JPEG·PNG·WebP 이미지를 선택해 주세요.'
     return
   }
-  photo.value = { name: file.name, size: file.size }
+  photo.value = file
 }
-function complete() {
+async function complete() {
   if (!canComplete.value || delivery.value?.status !== '배송 중') return
-  delivery.value.status = '배송 완료'
-  panel.value = ''
-  photo.value = null
-  notice.value =
-    '완료 상태를 화면에 반영했습니다. 실제 완료 처리·사진 업로드·고객 알림은 실행하지 않았습니다.'
+  submitting.value = true
+  try {
+    const response = await api.completeDelivery(
+      delivery.value.id,
+      {
+        actualHandoffType: method.value === '직접 전달' ? 'DIRECT' : 'DOORSTEP',
+        storageLocation: place.value.trim() || null,
+        contactAttemptedAt: contactedAt.value ? new Date(contactedAt.value).toISOString() : null,
+        contactResult: contactResult.value ? 'CONTACTED' : null,
+      },
+      photo.value,
+    )
+    delivery.value.status = response.status === 'DELIVERED' ? '배송 완료' : response.status
+    panel.value = ''
+    photo.value = null
+    notice.value = '배송 완료 처리가 저장되었습니다.'
+  } catch (failure) {
+    notice.value = failure.message || '배송 완료를 처리하지 못했습니다.'
+  } finally {
+    submitting.value = false
+  }
 }
-function fail() {
+async function fail() {
   if (!failure.value.trim() || finished.value) return
-  delivery.value.status = '배송 실패'
-  panel.value = ''
-  failure.value = ''
-  notice.value = '실패 상태를 화면에 반영했습니다. 실제 실패 보고는 전송하지 않았습니다.'
+  submitting.value = true
+  try {
+    await api.failDelivery(delivery.value.id, {
+      failureStage: 'DURING_DELIVERY',
+      failureCode: 'OTHER',
+      failureDetail: failure.value.trim(),
+      itemRecovered: false,
+    })
+    delivery.value.status = '배송 실패'
+    panel.value = ''
+    failure.value = ''
+    notice.value = '배송 실패 처리가 저장되었습니다.'
+  } catch (requestFailure) {
+    notice.value = requestFailure.message || '배송 실패를 처리하지 못했습니다.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 <template>
@@ -125,6 +166,7 @@ function fail() {
           <button
             v-if="delivery.status === '배송 준비'"
             class="button button-primary"
+            :disabled="submitting"
             @click="start"
           >
             배송 시작 시연</button
@@ -196,7 +238,7 @@ function fail() {
           실제 처리 시 사진·보관 위치·연락 결과를 서버에서 검증합니다. 현재는 입력 배치만
           확인합니다.
         </p>
-        <button class="button button-primary" type="submit" :disabled="!canComplete">
+        <button class="button button-primary" type="submit" :disabled="!canComplete || submitting">
           완료 반영
         </button>
       </form>
@@ -212,7 +254,11 @@ function fail() {
         <p>{{ delivery?.recipient }} · {{ delivery?.address }}</p>
         <label class="ui-field">실패 사유<textarea v-model="failure" rows="4" required /></label>
         <p class="ui-muted">실제 고객 알림이나 후속 처리는 실행하지 않습니다.</p>
-        <button class="button button-primary" type="submit" :disabled="!failure.trim()">
+        <button
+          class="button button-primary"
+          type="submit"
+          :disabled="!failure.trim() || submitting"
+        >
           실패 반영
         </button>
       </form></Dialog
