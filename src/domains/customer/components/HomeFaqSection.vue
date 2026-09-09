@@ -1,44 +1,26 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { customerApi } from '../api/customerApi.js'
 import { ArrowRight, ChevronDown } from 'lucide-vue-next'
 
 // defineEmits는 전체 질문 보기 요청을 부모 페이지로 전달하는 Vue 문법입니다.
 const emit = defineEmits(['navigate'])
 
-const faqItems = [
-  {
-    id: 'delivery-day',
-    question: '배송 희망일은 어떻게 선택하나요?',
-    answer: '구독 신청 단계에서 캘린더의 원하는 배송 희망일을 3일 이상 선택할 수 있습니다.',
-  },
-  {
-    id: 'change-deadline',
-    question: '메뉴와 배송지는 언제까지 변경할 수 있나요?',
-    answer:
-      '배송 시작 3일 전 오후 6시까지 변경할 수 있으며, 마감 이후에는 변경 버튼이 비활성화됩니다.',
-  },
-  {
-    id: 'plan-selection',
-    question: '플랜은 어떻게 선택하나요?',
-    answer:
-      '건강식, 영양식, 든든식 중 생활 패턴에 맞는 플랜을 선택해 구독 신청을 시작할 수 있습니다.',
-  },
-  {
-    id: 'schedule-delay',
-    question: '배송 일정을 미룰 수 있나요?',
-    answer:
-      '변경 가능한 회차는 회차당 한 번 일정을 미룰 수 있으며, 사용 여부는 내 구독에서 확인할 수 있습니다.',
-  },
-  {
-    id: 'payment-time',
-    question: '정기결제는 언제 진행되나요?',
-    answer:
-      '다음 구독 기간이 시작되기 전에 등록한 결제 수단으로 진행되며, 정확한 일정은 내 구독에서 안내됩니다.',
-  },
-]
+const faqItems = ref([])
+const loadError = ref(false)
+onMounted(async () => {
+  try {
+    faqItems.value = (await customerApi.faqs())
+      .slice(0, 5)
+      .map((row) => ({ ...row, id: row.faqId }))
+    openFaqId.value = faqItems.value[0]?.id ?? null
+  } catch {
+    loadError.value = true
+  }
+})
 
 // null은 열린 답변이 없는 상태이며, 질문의 id가 들어오면 해당 답변만 펼쳐집니다.
-const openFaqId = ref(faqItems[0].id)
+const openFaqId = ref(null)
 
 // 이미 열린 질문을 다시 누르면 닫고, 다른 질문을 누르면 해당 답변으로 교체합니다.
 function toggleFaq(faqId) {
@@ -60,6 +42,9 @@ function toggleFaq(faqId) {
     </div>
 
     <!-- v-for는 faqItems의 질문 수만큼 같은 질문·답변 구조를 반복해서 만드는 Vue 문법입니다. -->
+    <p v-if="loadError" role="status">
+      질문을 불러오지 못했습니다. 전체 질문 보기에서 다시 확인해 주세요.
+    </p>
     <div class="home-faq__list">
       <div
         v-for="faq in faqItems"

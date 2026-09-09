@@ -11,7 +11,16 @@ export function requiredRoles(path) {
     ].includes(path)
   )
     return null
+  if (path === '/admin/notifications') return ['ADMIN']
+  if (path === '/notifications' || path === '/mypage/notifications')
+    return ['CUSTOMER', 'RIDER', 'ADMIN']
   if (path === '/admin' || path.startsWith('/admin/')) return ['ADMIN', 'SUPER_ADMIN']
+  if (
+    path === '/help/chat' ||
+    path.startsWith('/help/inquiries') ||
+    path === '/support/quality-issue'
+  )
+    return ['CUSTOMER', 'RIDER']
   if (path.startsWith('/rider/')) return ['RIDER']
   if (
     [
