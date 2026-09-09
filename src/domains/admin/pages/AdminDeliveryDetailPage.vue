@@ -11,6 +11,7 @@ const api = createAdminDeliveryOperationsApi(http)
 const delivery = ref(null)
 const state = ref('loading')
 const photoLoading = ref(false)
+const failureDetail = ref('')
 async function load() {
   state.value = 'loading'
   try {
@@ -31,6 +32,19 @@ async function openPhoto() {
   } finally {
     photoLoading.value = false
   }
+}
+async function failDelivery() {
+  if (!failureDetail.value.trim() || !window.confirm('배송을 실패 처리할까요?')) return
+  await api.failDelivery(delivery.value.deliveryId, {
+    failureStage: 'BEFORE_DEPARTURE',
+    failureCode: 'OTHER',
+    failureDetail: failureDetail.value.trim(),
+    itemRecovered: false,
+    adminReasonCode: 'OTHER',
+    adminReasonDetail: failureDetail.value.trim(),
+  })
+  failureDetail.value = ''
+  await load()
 }
 watch(() => route.params.deliveryId, load)
 onMounted(load)
@@ -77,6 +91,19 @@ onMounted(load)
                 <dd>{{ delivery.requestedHandoffType }}</dd>
               </div>
             </dl>
+          </section>
+          <section v-if="delivery.status === 'READY'" class="ui-surface ui-stack">
+            <h2>배송 실패 처리</h2>
+            <label class="ui-field"
+              >처리 사유<textarea v-model.trim="failureDetail" rows="3" />
+            </label>
+            <button
+              class="button button-danger-outline"
+              :disabled="!failureDetail"
+              @click="failDelivery"
+            >
+              실패 처리
+            </button>
           </section>
           <section class="ui-surface ui-stack">
             <h2>전달 결과·증빙</h2>
