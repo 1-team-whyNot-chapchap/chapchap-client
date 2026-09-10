@@ -3,11 +3,26 @@ import { onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { authSession } from '../../../common/api/http.js'
 import { roleHome } from '../authSession.js'
+import { createSignupFlow } from '../signupFlow.js'
 const route = useRoute()
 const router = useRouter()
 const message = ref('로그인 상태를 확인하고 있습니다.')
 const failed = ref(false)
 onMounted(async () => {
+  if (route.query.signupSessionId && !route.query.code) {
+    try {
+      authSession.clear()
+      createSignupFlow(window.sessionStorage).start(route.query.signupSessionId)
+      await router.replace('/signup')
+      return
+    } catch {
+      failed.value = true
+      message.value =
+        '가입 세션을 저장하지 못했습니다. 브라우저 저장소 설정을 확인하고 다시 로그인해 주세요.'
+      await router.replace('/auth/callback')
+      return
+    }
+  }
   if (route.query.code || route.query.signupSessionId) {
     failed.value = true
     message.value = route.query.signupSessionId

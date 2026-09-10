@@ -43,7 +43,7 @@ const providerLabel = (providers) =>
 
 <template>
   <div class="page account-design profile-design">
-    <RouterLink class="text-action row back-link" to="/mypage"
+    <RouterLink class="text-action back-link" to="/mypage"
       ><ChevronLeft :size="18" aria-hidden="true" />마이페이지</RouterLink
     >
     <header class="intro">

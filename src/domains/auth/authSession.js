@@ -1,4 +1,5 @@
 import { reactive, readonly } from 'vue'
+import { validatePolicies } from './signupFlow.js'
 
 export function roleHome(role) {
   return (
@@ -108,6 +109,26 @@ export function createAuthSession(http, authHttp) {
   return {
     state: readonly(state),
     ensureSession,
+    async getSignupPolicies() {
+      return validatePolicies(payload(await authHttp.get('/api/auth/policies/current')))
+    },
+    async completeSignup(request) {
+      if (refreshPromise) await refreshPromise.catch(() => {})
+      clear()
+      initialPasswordRequired = false
+      const version = generation
+      // Dedicated client: never refresh/replay an account-creation POST.
+      const data = payload(await authHttp.post('/api/auth/signup/complete', request))
+      if (version !== generation || typeof data.accessToken !== 'string' || !data.accessToken)
+        throw new Error('가입 결과를 확인할 수 없습니다. 다시 로그인해 주세요.')
+      accessToken = data.accessToken
+      try {
+        return await loadUser()
+      } catch (error) {
+        clear()
+        throw error
+      }
+    },
     async completeSocialLogin() {
       clear()
       initialPasswordRequired = false

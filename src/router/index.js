@@ -13,6 +13,15 @@ if (window.location.pathname === '/auth/callback') {
   window.history.replaceState(null, '', `/#/auth/callback${safe.size ? `?${safe}` : ''}`)
 }
 
+// PortOne mobile redirects use a normal path, not a URL fragment.
+if (window.location.pathname === '/signup/identity-callback') {
+  const query = new URLSearchParams(window.location.search)
+  const safe = new URLSearchParams()
+  for (const key of ['code', 'identityVerificationId'])
+    if (query.has(key)) safe.set(key, query.get(key))
+  window.history.replaceState(null, '', `/#/signup${safe.size ? `?${safe}` : ''}`)
+}
+
 // 동적 import는 방문한 페이지의 코드만 내려받아 첫 화면의 파일 크기를 줄입니다.
 const AddressFormPage = () => import('../domains/customer/pages/AddressFormPage.vue')
 const AddressListPage = () => import('../domains/customer/pages/AddressListPage.vue')
@@ -36,7 +45,7 @@ const AdminCancellationManagementPage = () =>
   import('../domains/admin/pages/AdminCancellationManagementPage.vue')
 const AdminWorkspacePage = () => import('../domains/admin/pages/AdminWorkspacePage.vue')
 const AuthPage = () => import('../domains/auth/pages/AuthPage.vue')
-const SignupDesignPage = () => import('../domains/auth/pages/SignupDesignPage.vue')
+const SignupPage = () => import('../domains/auth/pages/SignupPage.vue')
 const ProfileDesignPage = () => import('../domains/customer/pages/ProfileDesignPage.vue')
 const FaqDesignPage = () => import('../domains/customer/pages/FaqDesignPage.vue')
 const CustomerSupportPage = () => import('../domains/customer/pages/CustomerSupportPage.vue')
@@ -143,7 +152,7 @@ const router = createRouter({
     {
       path: '/signup',
       name: 'signup',
-      component: SignupDesignPage,
+      component: SignupPage,
       meta: { layout: 'minimal' },
     },
     { path: '/menu', name: 'menu', component: MenuListPage },

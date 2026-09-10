@@ -1,5 +1,11 @@
 @import './Style.css';
 @import './base.css';
+:root {
+  --action-height: 44px;
+  --action-icon-size: 18px;
+  --action-gap: 8px;
+  --text-action-gap: 6px;
+}
 .brand-mark {
   width: 34px;
   height: 34px;
@@ -49,16 +55,20 @@
   margin-top: 0;
 }
 .button {
-  min-height: 46px;
+  min-height: var(--action-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 12px 18px;
+  gap: var(--action-gap);
+  padding: 10px 16px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-size: var(--font-body);
   font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-compact);
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
   transition:
     transform 0.2s,
     background 0.2s,
@@ -93,18 +103,46 @@
   background: transparent;
   color: var(--color-text);
 }
-.text-button {
+.text-button,
+.text-action,
+.back-button {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 4px 0;
+  justify-content: center;
+  gap: var(--text-action-gap);
+  min-height: var(--action-height);
+  padding: 8px;
   border: 0;
   background: transparent;
-  color: var(--color-text-muted);
+  color: var(--color-primary-pressed);
   font-size: var(--font-body);
-  font-weight: 800;
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-compact);
+  text-align: center;
+  vertical-align: middle;
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+/* Icons and labels form one centered group, independent of the button width. */
+:is(.button, .text-button, .text-action, .back-button) > svg {
+  display: block;
+  width: var(--action-icon-size);
+  height: var(--action-icon-size);
+  flex: 0 0 var(--action-icon-size);
+  margin: 0;
+}
+:is(.button, .text-button, .text-action, .back-button) > span {
+  min-width: 0;
+}
+.text-action.back-link {
+  width: fit-content;
+  justify-content: flex-start;
+  gap: var(--text-action-gap);
+}
+:is(.button, .text-button, .text-action, .back-button):focus-visible {
+  outline: 3px solid var(--color-primary-pressed);
+  outline-offset: 3px;
 }
 .section-heading {
   display: flex;
@@ -410,17 +448,8 @@
   max-width: 820px;
 }
 
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.page > .back-button {
   margin-bottom: 36px;
-  padding: 7px 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--font-caption);
-  font-weight: 700;
 }
 
 .management-notice {
