@@ -14,6 +14,7 @@ const rider = computed(() => ({ id: route.params.riderId, name: `라이더 ${rou
 const schedules = ref([])
 const exceptions = ref([])
 const areas = ref([])
+const areaCode = ref('')
 async function load() {
   const riderId = route.params.riderId
   schedules.value = await api.listWeeklySchedules(riderId)
@@ -22,6 +23,16 @@ async function load() {
   const from = `${now.getFullYear()}-01-01`
   const to = `${now.getFullYear()}-12-31`
   exceptions.value = await api.listScheduleExceptions(riderId, { dateFrom: from, dateTo: to })
+}
+async function createArea() {
+  if (!areaCode.value) return
+  await api.createDeliveryArea(route.params.riderId, {
+    deliveryAreaCode: areaCode.value,
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+    isActive: true,
+  })
+  areaCode.value = ''
+  await load()
 }
 const tab = ref('주간 일정')
 const open = ref(false)
@@ -96,18 +107,29 @@ onMounted(load)
           </li>
           <li v-if="!exceptions.length" class="ui-empty">등록된 예외 일정이 없습니다.</li>
         </ul>
-        <ul v-else class="ui-list">
-          <li v-for="item in areas" :key="item.riderDeliveryAreaId" class="ui-list-item">
-            <div>
-              <strong>{{ item.deliveryAreaCode }}</strong>
-              <p>
-                {{ item.effectiveFrom }} ~ {{ item.effectiveTo || '종료일 없음' }} ·
-                {{ item.isActive ? '활성' : '비활성' }}
-              </p>
-            </div>
-          </li>
-          <li v-if="!areas.length" class="ui-empty">담당 지역이 없습니다.</li>
-        </ul>
+        <template v-else
+          ><div class="ui-actions">
+            <input v-model.trim="areaCode" class="ui-input" placeholder="담당 지역 코드" /><button
+              class="button button-secondary"
+              :disabled="!areaCode"
+              @click="createArea"
+            >
+              지역 추가
+            </button>
+          </div>
+          <ul class="ui-list">
+            <li v-for="item in areas" :key="item.riderDeliveryAreaId" class="ui-list-item">
+              <div>
+                <strong>{{ item.deliveryAreaCode }}</strong>
+                <p>
+                  {{ item.effectiveFrom }} ~ {{ item.effectiveTo || '종료일 없음' }} ·
+                  {{ item.isActive ? '활성' : '비활성' }}
+                </p>
+              </div>
+            </li>
+            <li v-if="!areas.length" class="ui-empty">담당 지역이 없습니다.</li>
+          </ul></template
+        >
       </section>
       <aside class="ui-note ui-stack">
         <h2>배송 활성 변경</h2>
