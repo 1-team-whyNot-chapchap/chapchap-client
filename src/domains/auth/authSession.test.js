@@ -5,6 +5,34 @@ import { createAuthSession, roleHome } from './authSession.js'
 import { createAccessGuard, requiredRoles } from './routeAccess.js'
 
 const user = (role = 'CUSTOMER') => ({ userId: '25', name: '테스트', role, status: 'ACTIVE' })
+test('signup uses returned access token for server profile, never an inferred role', async () => {
+  const { session, calls } = clients(async (config) =>
+    config.url.endsWith('/signup/complete')
+      ? { accessToken: 'signup-test-token' }
+      : user('CUSTOMER'),
+  )
+  const request = {
+    signupSessionId: 'test',
+    identityVerificationId: 'verification',
+    policies: [{ policyId: 1, agreed: true }],
+  }
+  assert.equal((await session.completeSignup(request)).role, 'CUSTOMER')
+  assert.equal(calls.length, 2)
+  assert.equal(calls[1].headers.get('Authorization'), 'Bearer signup-test-token')
+  assert.deepEqual(JSON.parse(calls[0].data), request)
+})
+test('failed signup POST is not refreshed or automatically replayed', async () => {
+  const { session, calls } = clients(async () => ({ status: 401 }))
+  await assert.rejects(session.completeSignup({}))
+  assert.equal(calls.length, 1)
+  assert.equal(session.state.user, null)
+})
+test('signup malformed token cannot create a frontend session', async () => {
+  const { session, calls } = clients(async () => ({ accessToken: '' }))
+  await assert.rejects(session.completeSignup({}))
+  assert.equal(calls.length, 1)
+  assert.equal(session.state.user, null)
+})
 function clients(handler) {
   const calls = []
   const adapter = async (config) => {

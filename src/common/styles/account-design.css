@@ -76,15 +76,6 @@
   padding: var(--space-4);
   border-radius: var(--radius-md);
 }
-.text-action {
-  min-height: 44px;
-  padding: var(--space-2);
-  border: 0;
-  background: transparent;
-  color: var(--color-primary-pressed);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
 .account-design input[type='checkbox'] {
   width: 20px;
   height: 20px;
@@ -104,7 +95,7 @@
   opacity: 0.55;
 }
 .account-design .button {
-  min-height: 48px;
+  min-height: var(--action-height);
 }
 .account-design svg {
   vertical-align: middle;
