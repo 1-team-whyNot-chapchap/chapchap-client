@@ -22,6 +22,9 @@ const query = (filters) =>
 
 export function createAdminRiderManagementApi(http) {
   return {
+    async getRiderDetail(riderId) {
+      return responseData(await http.get(numericPath(ridersPath, riderId, '기사')))
+    },
     async updateDeliveryActive(riderId, request) {
       return responseData(
         await http.patch(`${numericPath(ridersPath, riderId, '기사')}/delivery-active`, request),

@@ -10,6 +10,7 @@ import { selectButtonPt, datePickerPt } from '../../../common/constants/primeUiP
 const route = useRoute()
 const api = createAdminRiderManagementApi(http)
 const rider = computed(() => ({ id: route.params.riderId, name: `라이더 ${route.params.riderId}` }))
+const riderDetail = ref(null)
 const schedules = ref([])
 const exceptions = ref([])
 const areas = ref([])
@@ -22,6 +23,8 @@ const exceptionSlot = ref('LUNCH')
 const exceptionWorking = ref(false)
 const exceptionReason = ref('OTHER')
 const exceptionDetail = ref('')
+const activeReason = ref('OPERATIONAL_HOLD')
+const activeReasonDetail = ref('')
 const actionError = ref('')
 const weekdayOptions = [
   { label: '월요일', value: 1 },
@@ -43,14 +46,29 @@ const reasonOptions = [
   { label: '대체 근무', value: 'SUBSTITUTE_WORK' },
   { label: '기타', value: 'OTHER' },
 ]
+const activeReasonOptions = [
+  { label: '최초 활성화', value: 'INITIAL_ACTIVATION' },
+  { label: '교육', value: 'TRAINING' },
+  { label: '장기 휴무', value: 'LONG_TERM_LEAVE' },
+  { label: '운영 보류', value: 'OPERATIONAL_HOLD' },
+  { label: '배송 재개', value: 'RESUME_DELIVERY' },
+  { label: '기타', value: 'OTHER' },
+]
 async function load() {
   const riderId = route.params.riderId
-  schedules.value = await api.listWeeklySchedules(riderId)
-  areas.value = await api.listDeliveryAreas(riderId)
   const now = new Date()
   const from = `${now.getFullYear()}-01-01`
   const to = `${now.getFullYear()}-12-31`
-  exceptions.value = await api.listScheduleExceptions(riderId, { dateFrom: from, dateTo: to })
+  const [detail, weeklySchedules, deliveryAreas, scheduleExceptions] = await Promise.all([
+    api.getRiderDetail(riderId),
+    api.listWeeklySchedules(riderId),
+    api.listDeliveryAreas(riderId),
+    api.listScheduleExceptions(riderId, { dateFrom: from, dateTo: to }),
+  ])
+  riderDetail.value = detail
+  schedules.value = weeklySchedules
+  areas.value = deliveryAreas
+  exceptions.value = scheduleExceptions
 }
 async function createArea() {
   actionError.value = ''
@@ -140,6 +158,31 @@ async function updateDeliveryArea(item) {
     actionError.value = error.message || '담당 지역을 변경하지 못했습니다.'
   }
 }
+async function updateDeliveryActive() {
+  if (!riderDetail.value) return
+  actionError.value = ''
+  if (activeReason.value === 'OTHER' && !activeReasonDetail.value) {
+    actionError.value = '기타 사유의 상세 내용을 입력해 주세요.'
+    return
+  }
+  const isDeliveryActive = !riderDetail.value.isDeliveryActive
+  const actionName = isDeliveryActive ? '활성화' : '비활성화'
+  if (!window.confirm(`배송 업무를 ${actionName}할까요?`)) return
+  try {
+    await api.updateDeliveryActive(route.params.riderId, {
+      isDeliveryActive,
+      version: riderDetail.value.version,
+      reasonCode: activeReason.value,
+      reasonDetail: activeReasonDetail.value || null,
+    })
+    activeReasonDetail.value = ''
+    await load()
+  } catch (error) {
+    actionError.value =
+      error.message || '배송 활성 상태를 변경하지 못했습니다. 최신 상태를 다시 확인해 주세요.'
+    await load()
+  }
+}
 const tab = ref('주간 일정')
 watch(() => route.params.riderId, load)
 onMounted(load)
@@ -169,7 +212,9 @@ onMounted(load)
       <section class="ui-surface ui-stack">
         <div class="ui-row">
           <h2>{{ rider.name }}</h2>
-          <span class="ops-status">배송 활성</span>
+          <span class="ops-status">{{
+            riderDetail?.isDeliveryActive ? '배송 활성' : '배송 비활성'
+          }}</span>
         </div>
         <p>{{ rider.id }}</p>
         <p class="ui-muted">계정 발급과 배송 활성 상태는 별개의 기능입니다.</p>
@@ -318,8 +363,25 @@ onMounted(load)
       </section>
       <aside class="ui-note ui-stack">
         <h2>배송 활성 변경</h2>
-        <p>상태 변경은 대상과 현재 배정을 서버에서 확인한 뒤 가능합니다.</p>
-        <button class="button button-secondary" disabled>활성 상태 변경 · 연결 전</button>
+        <p>
+          현재 상태와 버전을 조회한 뒤 변경합니다. 다른 관리자의 변경과 충돌하면 최신 상태를 다시
+          불러옵니다.
+        </p>
+        <form class="ui-stack" @submit.prevent="updateDeliveryActive">
+          <select v-model="activeReason" class="ui-input" aria-label="상태 변경 사유">
+            <option v-for="option in activeReasonOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+          <input
+            v-model.trim="activeReasonDetail"
+            class="ui-input"
+            placeholder="상세 사유 (기타는 필수)"
+          />
+          <button class="button button-secondary" :disabled="!riderDetail">
+            배송 {{ riderDetail?.isDeliveryActive ? '비활성화' : '활성화' }}
+          </button>
+        </form>
       </aside>
     </template>
   </AdminFrame>
