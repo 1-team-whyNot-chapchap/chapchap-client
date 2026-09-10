@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import Dialog from 'primevue/dialog'
@@ -9,6 +9,8 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import AdminFrame from '../components/AdminFrame.vue'
 import { auditRows } from '../adminSupportPreview'
+import http from '../../../common/api/http.js'
+import { createAdminAuditAndIntegrationEventsApi } from '../api/adminAuditAndIntegrationEventsApi.js'
 import {
   datePickerPt,
   dialogPt,
@@ -18,6 +20,8 @@ import {
 } from '../../../common/constants/primeUiPt'
 const route = useRoute()
 const router = useRouter()
+const api = createAdminAuditAndIntegrationEventsApi(http)
+const deliveryRows = ref([])
 const tabs = ['인증·권한', '고객지원', '배송']
 const tab = computed({
   get: () => (tabs.includes(String(route.query.tab)) ? String(route.query.tab) : tabs[0]),
@@ -32,18 +36,46 @@ const open = computed({
   },
 })
 const rows = computed(() =>
-  auditRows[tab.value].filter((r) => {
-    const f = filters[tab.value]
-    const date = dayjs(r.at)
-    return (
-      (!f.target || r.target.includes(f.target.trim())) &&
-      (!f.dates?.[0] || !date.isBefore(dayjs(f.dates[0]), 'day')) &&
-      (!f.dates?.[1] || !date.isAfter(dayjs(f.dates[1]), 'day'))
-    )
-  }),
+  tab.value === '배송'
+    ? deliveryRows.value
+    : auditRows[tab.value].filter((r) => {
+        const f = filters[tab.value]
+        const date = dayjs(r.at)
+        return (
+          (!f.target || r.target.includes(f.target.trim())) &&
+          (!f.dates?.[0] || !date.isBefore(dayjs(f.dates[0]), 'day')) &&
+          (!f.dates?.[1] || !date.isAfter(dayjs(f.dates[1]), 'day'))
+        )
+      }),
 )
+async function loadDeliveryAudit() {
+  if (tab.value !== '배송') return
+  const target = filters.배송.target.trim()
+  const response = await api.listAuditHistories(
+    /^\d+$/.test(target)
+      ? { entityId: Number(target) }
+      : target
+        ? { entityType: target.toUpperCase() }
+        : {},
+  )
+  deliveryRows.value = response.items.map((item) => ({
+    id: item.auditHistoryId,
+    at: item.occurredAt,
+    action: item.action,
+    target: `${item.entityType} ${item.entityId}`,
+    actor: `${item.actorType} ${item.actorId}`,
+    result: item.reasonCode || '정상',
+    detail: item.reasonDetail || '',
+  }))
+}
+watch(tab, loadDeliveryAudit)
+onMounted(loadDeliveryAudit)
 function reset() {
   filters[tab.value] = { target: '', dates: null }
+  if (tab.value === '배송') loadDeliveryAudit()
+}
+function applyFilters() {
+  if (tab.value === '배송') loadDeliveryAudit()
 }
 </script>
 <template>
@@ -72,7 +104,7 @@ function reset() {
         >대상 검색<input
           v-model="filters[tab].target"
           type="search"
-          placeholder="대상 식별자" /></label
+          placeholder="대상 유형 또는 ID" /></label
       ><label v-if="tab === '고객지원'" class="ui-field" for="audit-dates"
         >조회 기간<DatePicker
           v-model="filters[tab].dates"
@@ -81,6 +113,7 @@ function reset() {
           date-format="yy.mm.dd"
           :manual-input="false"
           :pt="datePickerPt" /></label
+      ><button class="button button-secondary" @click="applyFilters">조회</button
       ><button class="button button-secondary" @click="reset">조건 초기화</button>
     </div>
     <section class="ui-surface ui-stack audit-records">

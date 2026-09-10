@@ -23,6 +23,8 @@ const AdminAccountManagementPage = () =>
 const AdminDashboard = () => import('../domains/admin/pages/AdminWorkHomePage.vue')
 const AdminDeliveryAssignmentPage = () =>
   import('../domains/admin/pages/AdminDeliveryAssignmentPage.vue')
+const AdminIntegrationEventsPage = () =>
+  import('../domains/admin/pages/AdminIntegrationEventsPage.vue')
 const AdminManagementPage = () => import('../domains/admin/pages/AdminManagementPage.vue')
 const AdminNotificationPage = () => import('../domains/admin/pages/AdminNotificationPage.vue')
 const AdminOwnerQuotaPage = () => import('../domains/admin/pages/AdminOwnerQuotaPage.vue')
@@ -272,6 +274,12 @@ const router = createRouter({
       path: '/admin/audit-logs',
       name: 'admin-audit-logs',
       component: () => import('../domains/admin/pages/AdminAuditLogsPage.vue'),
+      meta: { area: 'admin' },
+    },
+    {
+      path: '/admin/integration-events',
+      name: 'admin-integration-events',
+      component: AdminIntegrationEventsPage,
       meta: { area: 'admin' },
     },
     {
