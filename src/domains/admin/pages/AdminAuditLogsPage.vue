@@ -50,7 +50,14 @@ const rows = computed(() =>
 )
 async function loadDeliveryAudit() {
   if (tab.value !== '배송') return
-  const response = await api.listAuditHistories()
+  const target = filters.배송.target.trim()
+  const response = await api.listAuditHistories(
+    /^\d+$/.test(target)
+      ? { entityId: Number(target) }
+      : target
+        ? { entityType: target.toUpperCase() }
+        : {},
+  )
   deliveryRows.value = response.items.map((item) => ({
     id: item.auditHistoryId,
     at: item.occurredAt,
@@ -65,6 +72,10 @@ watch(tab, loadDeliveryAudit)
 onMounted(loadDeliveryAudit)
 function reset() {
   filters[tab.value] = { target: '', dates: null }
+  if (tab.value === '배송') loadDeliveryAudit()
+}
+function applyFilters() {
+  if (tab.value === '배송') loadDeliveryAudit()
 }
 </script>
 <template>
@@ -93,7 +104,7 @@ function reset() {
         >대상 검색<input
           v-model="filters[tab].target"
           type="search"
-          placeholder="대상 식별자" /></label
+          placeholder="대상 유형 또는 ID" /></label
       ><label v-if="tab === '고객지원'" class="ui-field" for="audit-dates"
         >조회 기간<DatePicker
           v-model="filters[tab].dates"
@@ -102,6 +113,7 @@ function reset() {
           date-format="yy.mm.dd"
           :manual-input="false"
           :pt="datePickerPt" /></label
+      ><button class="button button-secondary" @click="applyFilters">조회</button
       ><button class="button button-secondary" @click="reset">조건 초기화</button>
     </div>
     <section class="ui-surface ui-stack audit-records">
