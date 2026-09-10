@@ -14,6 +14,7 @@ const schedules = ref([])
 const exceptions = ref([])
 const areas = ref([])
 const areaCode = ref('')
+const areaEndDates = ref({})
 const weeklyDay = ref(1)
 const weeklySlot = ref('LUNCH')
 const exceptionDate = ref(new Date())
@@ -52,14 +53,19 @@ async function load() {
   exceptions.value = await api.listScheduleExceptions(riderId, { dateFrom: from, dateTo: to })
 }
 async function createArea() {
+  actionError.value = ''
   if (!areaCode.value) return
-  await api.createDeliveryArea(route.params.riderId, {
-    deliveryAreaCode: areaCode.value,
-    effectiveFrom: new Date().toISOString().slice(0, 10),
-    isActive: true,
-  })
-  areaCode.value = ''
-  await load()
+  try {
+    await api.createDeliveryArea(route.params.riderId, {
+      deliveryAreaCode: areaCode.value,
+      effectiveFrom: new Date().toISOString().slice(0, 10),
+      isActive: true,
+    })
+    areaCode.value = ''
+    await load()
+  } catch (error) {
+    actionError.value = error.message || '담당 지역을 추가하지 못했습니다.'
+  }
 }
 const toIsoDate = (value) => {
   const date = new Date(value)
@@ -120,6 +126,18 @@ async function deleteScheduleException(item) {
     await load()
   } catch (error) {
     actionError.value = error.message || '예외 일정을 삭제하지 못했습니다.'
+  }
+}
+async function updateDeliveryArea(item) {
+  actionError.value = ''
+  try {
+    await api.updateDeliveryArea(route.params.riderId, item.riderDeliveryAreaId, {
+      effectiveTo: areaEndDates.value[item.riderDeliveryAreaId] || item.effectiveTo || null,
+      isActive: item.isActive,
+    })
+    await load()
+  } catch (error) {
+    actionError.value = error.message || '담당 지역을 변경하지 못했습니다.'
   }
 }
 const tab = ref('주간 일정')
@@ -272,12 +290,26 @@ onMounted(load)
           </div>
           <ul class="ui-list">
             <li v-for="item in areas" :key="item.riderDeliveryAreaId" class="ui-list-item">
-              <div>
+              <div class="ui-stack">
                 <strong>{{ item.deliveryAreaCode }}</strong>
                 <p>
                   {{ item.effectiveFrom }} ~ {{ item.effectiveTo || '종료일 없음' }} ·
                   {{ item.isActive ? '활성' : '비활성' }}
                 </p>
+                <div class="ui-actions">
+                  <label class="ui-field"
+                    >종료일<input
+                      v-model="areaEndDates[item.riderDeliveryAreaId]"
+                      class="ui-input"
+                      type="date"
+                  /></label>
+                  <label class="ui-field"
+                    ><input v-model="item.isActive" type="checkbox" /> 활성</label
+                  >
+                  <button class="button button-secondary" @click="updateDeliveryArea(item)">
+                    저장
+                  </button>
+                </div>
               </div>
             </li>
             <li v-if="!areas.length" class="ui-empty">담당 지역이 없습니다.</li>
