@@ -6,6 +6,7 @@ import PageBackButton from '../../../common/components/navigation/PageBackButton
 import StatusBadge from '../../../common/components/feedback/StatusBadge.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import ContentState from '../../../common/components/feedback/ContentState.vue'
+import CustomerRiderLocationPanel from '../components/CustomerRiderLocationPanel.vue'
 import http from '../../../common/api/http.js'
 import { createCustomerDeliveryApi } from '../api/customerDeliveryApi.js'
 
@@ -130,6 +131,11 @@ onBeforeUnmount(() => requestId++)
               </div>
             </dl>
           </section>
+          <CustomerRiderLocationPanel
+            v-if="delivery.status === 'DELIVERING'"
+            :delivery-id="delivery.deliveryId"
+            :delivering="true"
+          />
         </div>
       </ContentState>
     </DesignPreview>
