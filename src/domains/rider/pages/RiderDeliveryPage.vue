@@ -1,23 +1,39 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { useRiderPreviewStore } from '../riderPreviewStore'
 import RiderNavigation from '../components/RiderNavigation.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import '../rider-wire.css'
 import http from '../../../common/api/http.js'
 import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
-const store = useRiderPreviewStore()
 const api = createDeliveryExecutionApi(http)
 const assignments = ref([])
+const loadError = ref('')
 async function load() {
-  assignments.value = (await api.listAssignments()).items
+  loadError.value = ''
+  try {
+    assignments.value = (await api.listAssignments()).items
+  } catch (error) {
+    assignments.value = []
+    loadError.value = error.message || '배정 목록을 불러오지 못했습니다.'
+  }
 }
 onMounted(load)
-const quantity = computed(() => store.deliveries.reduce((total, row) => total + row.quantity, 0))
-const status = computed(() =>
-  store.workStarted ? '근무 중' : store.assignment.confirmed ? '확인 완료' : '확인 필요',
+const quantity = computed(() =>
+  assignments.value.reduce((total, item) => total + item.lunchboxQuantity, 0),
 )
+const stopCount = computed(() =>
+  assignments.value.reduce((total, item) => total + item.stopCount, 0),
+)
+const statusLabel = {
+  ASSIGNED: '확인 필요',
+  ACKNOWLEDGED: '확인 완료',
+  ISSUE_REPORTED: '이슈 보고됨',
+  CONFIRMED: '배정 확정',
+  REASSIGNED: '재배정됨',
+}
+const slotLabel = { LUNCH: '점심', DINNER: '저녁' }
+const status = computed(() => statusLabel[assignments.value[0]?.status] || '배정 없음')
 </script>
 <template>
   <div class="workspace-ui rider-workspace design-review-page rider-wire">
@@ -33,7 +49,7 @@ const status = computed(() =>
       <dl class="rider-wire-summary">
         <div>
           <dt>방문지</dt>
-          <dd>{{ store.deliveries.length }}<small>곳</small></dd>
+          <dd>{{ stopCount }}<small>곳</small></dd>
         </div>
         <div>
           <dt>도시락</dt>
@@ -45,7 +61,7 @@ const status = computed(() =>
         <p>
           {{
             assignments[0]
-              ? `${assignments[0].deliveryDate} · ${assignments[0].deliverySlot}`
+              ? `${assignments[0].deliveryDate} · ${slotLabel[assignments[0].deliverySlot]}`
               : '배정 없음'
           }}
         </p>
@@ -61,12 +77,11 @@ const status = computed(() =>
         >
           <div class="rider-wire-place">
             <strong>{{ index + 1 }} · 배정 {{ assignment.assignmentId }}</strong
-            ><small>{{ assignment.status }}</small>
+            ><small>{{ statusLabel[assignment.status] }}</small>
           </div>
-          <span>{{ assignment.deliverySlot }}</span
+          <span>{{ slotLabel[assignment.deliverySlot] }}</span
           ><strong>{{ assignment.lunchboxQuantity }}개</strong>
           <RouterLink
-            v-if="store.workStarted"
             class="button button-secondary"
             :to="{
               name: 'rider-assignment-detail',
@@ -74,34 +89,14 @@ const status = computed(() =>
             }"
             >상세</RouterLink
           >
-          <span v-else class="ui-muted" aria-label="근무 시작 후 상세 확인 가능">—</span>
         </article>
-        <p v-if="!store.deliveries.length" class="ui-empty">배정된 배송이 없어요.</p>
+        <p v-if="!assignments.length" class="ui-empty">배정된 배송이 없어요.</p>
       </section>
-      <div v-if="!store.workStarted" class="rider-wire-actions">
+      <div class="rider-wire-actions">
         <RouterLink class="button button-secondary" to="/rider/issues">이슈 제기</RouterLink>
-        <button
-          v-if="!store.assignment.confirmed"
-          class="button button-primary"
-          type="button"
-          :disabled="!store.deliveries.length"
-          @click="store.assignment.confirmed = true"
-        >
-          확인
-        </button>
-        <button
-          v-else
-          class="button button-primary"
-          type="button"
-          @click="store.workStarted = true"
-        >
-          근무 시작
-        </button>
+        <button class="button button-secondary" type="button" @click="load">새로고침</button>
       </div>
-      <p v-else class="ui-note" role="status">
-        근무 중 · 각 배송 행의 상세 버튼에서 배송 정보를 확인할 수 있습니다. 실제 근무 시작 요청은
-        전송하지 않았습니다.
-      </p>
+      <p v-if="loadError" class="ui-note" role="alert">{{ loadError }}</p>
     </DesignPreview>
   </div>
 </template>
