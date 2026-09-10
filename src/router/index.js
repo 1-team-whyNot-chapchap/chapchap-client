@@ -305,6 +305,12 @@ const router = createRouter({
       meta: { area: 'admin' },
     },
     {
+      path: '/admin/rider-leave-requests',
+      name: 'admin-rider-leave-requests',
+      component: () => import('../domains/admin/pages/AdminRiderLeaveRequestsPage.vue'),
+      meta: { area: 'admin' },
+    },
+    {
       path: '/admin/accounts',
       name: 'admin-accounts',
       component: AdminAccountManagementPage,
