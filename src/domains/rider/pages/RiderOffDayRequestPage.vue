@@ -3,12 +3,13 @@ import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import DatePicker from 'primevue/datepicker'
 import RiderNavigation from '../components/RiderNavigation.vue'
-import { useRiderPreviewStore } from '../riderPreviewStore'
 import { popupDatePickerPt } from '../../../common/constants/primeUiPt'
 import '../rider-wire.css'
 import { earliestOffDay, isOffDayAllowed, offDayReasons } from '../offDayPolicy'
+import http from '../../../common/api/http.js'
+import { createRiderScheduleApi } from '../api/riderScheduleApi.js'
 
-const store = useRiderPreviewStore()
+const api = createRiderScheduleApi(http)
 const offDayCalendarPt = {
   ...popupDatePickerPt,
   panel: 'ui-calendar ui-calendar-popup rider-offday-calendar',
@@ -19,11 +20,13 @@ const reason = ref('연차')
 const detail = ref('')
 const error = ref('')
 const notice = ref('')
+const submitting = ref(false)
 const minDate = ref(earliestOffDay())
 function refreshMinDate() {
   minDate.value = earliestOffDay()
 }
-function submit() {
+async function submit() {
+  if (submitting.value) return
   refreshMinDate()
   error.value = ''
   notice.value = ''
@@ -40,32 +43,26 @@ function submit() {
     error.value = '신청 사유는 연차, 병가, 기타 중 선택해주세요.'
     return
   }
-  if (
-    store.offDayRequests.some(
-      (item) =>
-        item.date === key &&
-        (item.slot === '종일' || slot.value === '종일' || item.slot === slot.value),
-    )
-  ) {
-    error.value = '해당 날짜와 시간대에는 이미 휴무 신청 또는 승인 내역이 있습니다.'
-    return
-  }
   if (reason.value === '기타' && !detail.value.trim()) {
     error.value = '기타 사유를 입력해주세요.'
     return
   }
-  store.offDayRequests.unshift({
-    id: `preview-${Date.now()}`,
-    date: key,
-    slot: slot.value,
-    reason: reason.value,
-    detail: detail.value.trim(),
-    status: '신청 중',
-  })
-  notice.value =
-    '예시 신청 내역에 추가했습니다. 실제 신청은 전송되지 않았으며 새로고침하면 초기화됩니다.'
-  date.value = null
-  detail.value = ''
+  submitting.value = true
+  try {
+    await api.createLeaveRequest({
+      leaveDate: key,
+      leaveSlot: { 종일: 'ALL_DAY', '점심 시간대': 'LUNCH', '저녁 시간대': 'DINNER' }[slot.value],
+      leaveType: { 연차: 'ANNUAL_LEAVE', 병가: 'SICK_LEAVE', 기타: 'OTHER' }[reason.value],
+      reasonDetail: detail.value.trim() || null,
+    })
+    notice.value = '휴무 신청을 제출했습니다. 승인 상태는 근무 일정에서 확인해 주세요.'
+    date.value = null
+    detail.value = ''
+  } catch (failure) {
+    error.value = failure.message || '휴무 신청을 제출하지 못했습니다.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -120,7 +117,9 @@ function submit() {
       <p v-if="notice" class="full ui-note" role="status">{{ notice }}</p>
       <div class="rider-wire-actions full">
         <RouterLink class="button button-secondary" to="/rider/schedule">취소</RouterLink
-        ><button class="button button-primary" type="submit">신청하기</button>
+        ><button class="button button-primary" type="submit" :disabled="submitting">
+          {{ submitting ? '신청 중…' : '신청하기' }}
+        </button>
       </div>
     </form>
     <RouterLink v-if="notice" class="button button-secondary" to="/rider/schedule">
