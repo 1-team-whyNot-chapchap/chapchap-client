@@ -29,6 +29,14 @@ export function createAdminDeliveryAssignmentApi(http) {
         await http.get(numericPath('delivery-groups', deliveryGroupId, '배송 그룹')),
       )
     },
+    async listRiderCandidates(deliveryGroupId, filters = {}) {
+      return responseData(
+        await http.get(
+          `${numericPath('delivery-groups', deliveryGroupId, '배송 그룹')}/rider-candidates`,
+          { params: query(filters) },
+        ),
+      )
+    },
     async runAutoAssignment(deliveryGroupId) {
       return responseData(
         await http.post(
