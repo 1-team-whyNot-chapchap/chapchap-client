@@ -12,6 +12,8 @@ const delivery = ref(null)
 const state = ref('loading')
 const photoLoading = ref(false)
 const failureDetail = ref('')
+const recoveryReason = ref('')
+const recoveryRiderId = ref('')
 async function load() {
   state.value = 'loading'
   try {
@@ -44,6 +46,28 @@ async function failDelivery() {
     adminReasonDetail: failureDetail.value.trim(),
   })
   failureDetail.value = ''
+  await load()
+}
+async function recoverDelivery() {
+  if (
+    !recoveryReason.value.trim() ||
+    !Number(recoveryRiderId.value) ||
+    !window.confirm('배송 결과를 실패로 복구할까요?')
+  )
+    return
+  await api.recoverDelivery(delivery.value.deliveryId, {
+    recoveryResult: 'FAILED',
+    reasonCode: 'OTHER',
+    reasonDetail: recoveryReason.value.trim(),
+    actualRiderId: Number(recoveryRiderId.value),
+    failure: {
+      failureStage: 'DURING_DELIVERY',
+      failureCode: 'OTHER',
+      failureDetail: recoveryReason.value.trim(),
+      itemRecovered: false,
+    },
+  })
+  recoveryReason.value = ''
   await load()
 }
 watch(() => route.params.deliveryId, load)
@@ -103,6 +127,20 @@ onMounted(load)
               @click="failDelivery"
             >
               실패 처리
+            </button>
+          </section>
+          <section v-if="delivery.status === 'FAILED'" class="ui-surface ui-stack">
+            <h2>사후 복구</h2>
+            <label class="ui-field"
+              >실제 라이더 ID<input v-model="recoveryRiderId" type="number" min="1" /></label
+            ><label class="ui-field"
+              >복구 사유<textarea v-model.trim="recoveryReason" rows="3" /></label
+            ><button
+              class="button button-secondary"
+              :disabled="!recoveryReason || !recoveryRiderId"
+              @click="recoverDelivery"
+            >
+              실패 결과 복구
             </button>
           </section>
           <section class="ui-surface ui-stack">
