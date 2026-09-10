@@ -32,6 +32,8 @@ const AdminAccountManagementPage = () =>
 const AdminDashboard = () => import('../domains/admin/pages/AdminWorkHomePage.vue')
 const AdminDeliveryAssignmentPage = () =>
   import('../domains/admin/pages/AdminDeliveryAssignmentPage.vue')
+const AdminIntegrationEventsPage = () =>
+  import('../domains/admin/pages/AdminIntegrationEventsPage.vue')
 const AdminManagementPage = () => import('../domains/admin/pages/AdminManagementPage.vue')
 const AdminNotificationPage = () => import('../domains/admin/pages/AdminNotificationPage.vue')
 const AdminOwnerQuotaPage = () => import('../domains/admin/pages/AdminOwnerQuotaPage.vue')
@@ -284,6 +286,12 @@ const router = createRouter({
       meta: { area: 'admin' },
     },
     {
+      path: '/admin/integration-events',
+      name: 'admin-integration-events',
+      component: AdminIntegrationEventsPage,
+      meta: { area: 'admin' },
+    },
+    {
       path: '/admin/delivery-groups',
       name: 'admin-delivery-groups',
       component: () => import('../domains/admin/pages/AdminDeliveryGroupsPage.vue'),
@@ -311,6 +319,12 @@ const router = createRouter({
       path: '/admin/riders/:riderId',
       name: 'admin-rider-operation',
       component: () => import('../domains/admin/pages/AdminRiderOperationPage.vue'),
+      meta: { area: 'admin' },
+    },
+    {
+      path: '/admin/rider-leave-requests',
+      name: 'admin-rider-leave-requests',
+      component: () => import('../domains/admin/pages/AdminRiderLeaveRequestsPage.vue'),
       meta: { area: 'admin' },
     },
     {

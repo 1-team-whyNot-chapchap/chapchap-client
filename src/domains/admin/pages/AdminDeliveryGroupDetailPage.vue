@@ -1,145 +1,380 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import SelectButton from 'primevue/selectbutton'
 import AdminFrame from '../components/AdminFrame.vue'
-import OperationReviewDialog from '../components/OperationReviewDialog.vue'
-import { groups, deliveries, useAdminDeliveryPreviewStore } from '../adminDeliveryPreview'
-import { selectButtonPt } from '../../../common/constants/primeUiPt'
+import ContentState from '../../../common/components/feedback/ContentState.vue'
+import http from '../../../common/api/http.js'
+import { createAdminDeliveryAssignmentApi } from '../api/adminDeliveryAssignmentApi.js'
 const route = useRoute()
-const store = useAdminDeliveryPreviewStore()
-const group = computed(() => groups.find((g) => g.id === route.params.deliveryGroupId))
-const items = computed(() => deliveries.filter((d) => d.groupId === group.value?.id))
-const tab = ref('배송 대상')
-const action = ref('')
-const candidate = ref('')
-const reason = ref('')
-const isOpen = computed({
-  get: () => Boolean(action.value),
-  set: (v) => {
-    if (!v) action.value = ''
-  },
-})
-function open(value) {
-  candidate.value = ''
-  reason.value = ''
-  action.value = value
+const api = createAdminDeliveryAssignmentApi(http)
+const group = ref(null)
+const state = ref('loading')
+const busy = ref(false)
+const notice = ref('')
+const candidates = ref([])
+const selectedDeliveryIds = ref([])
+const selectedRiderId = ref(null)
+const replacementCandidates = ref({})
+const replacementRiderIds = ref({})
+const issueRiderIds = ref({})
+const manualReason = ref('OPERATIONAL_ADJUSTMENT')
+const manualReasonDetail = ref('')
+const manualReasonOptions = [
+  { label: '자동 배정 실패', value: 'AUTO_ASSIGNMENT_FAILED' },
+  { label: '지연 주문', value: 'LATE_ORDER' },
+  { label: '지역 예외', value: 'AREA_EXCEPTION' },
+  { label: '운영 조정', value: 'OPERATIONAL_ADJUSTMENT' },
+  { label: '기타', value: 'OTHER' },
+]
+async function load() {
+  state.value = 'loading'
+  notice.value = ''
+  try {
+    const [deliveryGroup, riderCandidates] = await Promise.all([
+      api.getDeliveryGroup(route.params.deliveryGroupId),
+      api.listRiderCandidates(route.params.deliveryGroupId),
+    ])
+    group.value = deliveryGroup
+    candidates.value = riderCandidates.items
+    selectedDeliveryIds.value = selectedDeliveryIds.value.filter((deliveryId) =>
+      deliveryGroup.deliveries.some((item) => item.deliveryId === deliveryId && !item.assignmentId),
+    )
+    state.value = 'ready'
+  } catch {
+    state.value = 'error'
+  }
 }
+const selectedCandidate = () =>
+  candidates.value.find((candidate) => candidate.riderId === selectedRiderId.value)
+const canManuallyAssign = () => {
+  const candidate = selectedCandidate()
+  return Boolean(
+    candidate &&
+    selectedDeliveryIds.value.length &&
+    (candidate.isEligible || !candidate.isAreaMatched) &&
+    (manualReason.value !== 'OTHER' || manualReasonDetail.value),
+  )
+}
+async function createManualAssignment() {
+  if (!canManuallyAssign()) return
+  const candidate = selectedCandidate()
+  const areaException = !candidate.isAreaMatched
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.createManualAssignments(group.value.deliveryGroupId, {
+      assignments: [
+        {
+          riderId: candidate.riderId,
+          deliveryIds: selectedDeliveryIds.value,
+          areaException,
+          reasonCode: areaException ? 'AREA_EXCEPTION' : manualReason.value,
+          reasonDetail: manualReasonDetail.value || null,
+        },
+      ],
+    })
+    selectedDeliveryIds.value = []
+    selectedRiderId.value = null
+    manualReasonDetail.value = ''
+    await load()
+    notice.value = '수동 배정을 완료했습니다.'
+  } catch (error) {
+    notice.value = error.message || '수동 배정을 완료하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function loadReplacementCandidates(assignmentId) {
+  notice.value = ''
+  try {
+    const response = await api.listRiderCandidates(group.value.deliveryGroupId, { assignmentId })
+    replacementCandidates.value = { ...replacementCandidates.value, [assignmentId]: response.items }
+  } catch (error) {
+    notice.value = error.message || '교체 후보를 불러오지 못했습니다.'
+  }
+}
+async function replaceRider(assignmentId) {
+  const riderId = replacementRiderIds.value[assignmentId]
+  if (!riderId || !window.confirm('선택한 라이더로 긴급 교체할까요?')) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.replaceRider(assignmentId, {
+      newRiderId: riderId,
+      reasonCode: 'URGENT_OPERATIONAL_CHANGE',
+      reasonDetail: null,
+    })
+    replacementCandidates.value = { ...replacementCandidates.value, [assignmentId]: null }
+    replacementRiderIds.value = { ...replacementRiderIds.value, [assignmentId]: null }
+    await load()
+    notice.value = '라이더 긴급 교체를 완료했습니다.'
+  } catch (error) {
+    notice.value = error.message || '라이더 긴급 교체를 완료하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function rejectAssignmentIssue(issueId) {
+  const reasonDetail = window.prompt('이슈 반려 사유를 입력해 주세요.')
+  if (!reasonDetail?.trim()) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.rejectAssignmentIssue(issueId, { reasonDetail: reasonDetail.trim() })
+    await load()
+    notice.value = '배정 이슈를 반려했습니다.'
+  } catch (error) {
+    notice.value = error.message || '배정 이슈를 반려하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function reassignAssignmentIssue(issue) {
+  const newRiderId = issueRiderIds.value[issue.issueId]
+  if (!newRiderId || !window.confirm('선택한 라이더에게 재배정할까요?')) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.reassignAssignmentIssue(issue.issueId, {
+      newRiderId,
+      reasonCode: 'OPERATIONAL_ADJUSTMENT',
+      reasonDetail: null,
+    })
+    await load()
+    notice.value = '배정 이슈를 재배정했습니다.'
+  } catch (error) {
+    notice.value = error.message || '배정 이슈를 재배정하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function action(method) {
+  if (busy.value || !group.value) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api[method](group.value.deliveryGroupId)
+    await load()
+    notice.value =
+      method === 'runAutoAssignment'
+        ? '자동 배정을 완료했습니다.'
+        : '배송 그룹을 최종 확정했습니다.'
+  } catch (error) {
+    notice.value = error.message || '배송 그룹 작업을 완료하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+watch(() => route.params.deliveryGroupId, load)
+onMounted(load)
 </script>
 <template>
   <AdminFrame
     title="배송 그룹 상세"
-    description="배송 대상과 배정 확인 상태를 검토합니다."
+    description="배송 대상과 배정 상태를 확인합니다."
     current="admin-delivery-groups"
   >
-    <RouterLink class="ops-link" :to="{ name: 'admin-delivery-groups', query: route.query }"
+    <RouterLink class="ops-link" :to="{ name: 'admin-delivery-groups' }"
       >← 배송 그룹 목록</RouterLink
     >
-    <div v-if="!group" class="ui-empty">
-      <h2>배송 그룹을 찾을 수 없습니다.</h2>
-      <p>목록에서 대상을 다시 선택해 주세요.</p>
-    </div>
-    <template v-else>
-      <section class="ui-surface ui-stack">
-        <div class="ui-row">
-          <div>
-            <h2>{{ group.area }}</h2>
-            <p>{{ group.date }} · {{ group.slot }}</p>
+    <ContentState :state="state" empty-title="배송 그룹을 찾을 수 없습니다." @retry="load">
+      <template v-if="group"
+        ><section class="ui-surface ui-stack">
+          <div class="ui-row">
+            <h2>배송 그룹 {{ group.deliveryGroupId }}</h2>
+            <span class="ops-status">{{ group.status }}</span>
           </div>
-          <span class="ops-status">{{ group.status }}</span>
-        </div>
-        <p class="ui-muted">{{ group.id }}</p>
-      </section>
-      <div class="ops-split">
-        <section class="ui-surface">
-          <SelectButton
-            v-model="tab"
-            :options="['배송 대상', '배정', '후보']"
-            :allow-empty="false"
-            :pt="selectButtonPt"
-            aria-label="배송 그룹 정보"
-          />
-          <ul v-if="tab === '배송 대상'" class="ui-list">
-            <li v-for="d in items" :key="d.id" class="ui-list-item">
-              <div>
-                <h3>{{ d.recipient }}</h3>
-                <p>{{ d.address }}</p>
-                <span class="ops-status">{{ d.status }}</span>
-              </div>
-              <RouterLink
-                class="ops-link"
-                :to="{ name: 'admin-delivery-detail', params: { deliveryId: d.id } }"
-                >배송 상세</RouterLink
-              >
-            </li>
-            <li v-if="!items.length" class="ui-empty">이 예시 그룹에는 배송 대상이 없습니다.</li>
-          </ul>
-          <div v-else-if="tab === '배정'" class="ui-stack">
-            <h3>{{ group.rider }}</h3>
-            <p>
-              {{
-                group.riderId ? '예시 배정 · 라이더 확인 정보 검토' : '아직 배정되지 않았습니다.'
-              }}
-            </p>
-            <RouterLink
-              v-if="group.riderId"
-              class="ops-link"
-              :to="{ name: 'admin-rider-operation', params: { riderId: group.riderId } }"
-              @click="store.selectRider(group)"
-              >라이더 운영 보기</RouterLink
-            ><button
-              v-if="group.riderId"
+          <p>{{ group.deliveryDate }} · {{ group.deliverySlot }}</p>
+          <p v-if="notice" class="ui-note" role="status">{{ notice }}</p>
+          <div class="ui-actions">
+            <button
               class="button button-secondary"
-              @click="open('배정 이슈 검토')"
+              :disabled="busy"
+              @click="action('runAutoAssignment')"
             >
-              배정 이슈 검토
+              자동 배정</button
+            ><button
+              class="button button-primary"
+              :disabled="busy"
+              @click="action('confirmDeliveryGroup')"
+            >
+              최종 확정
             </button>
           </div>
-          <div v-else class="ui-stack">
-            <h3>후보 라이더</h3>
-            <p>라이더 1 · 서초 1권역</p>
-            <p class="ui-note">실제 후보 가능 여부와 수용량은 서버 조회 후 판단합니다.</p>
-          </div>
         </section>
-        <aside class="ui-surface ui-stack">
-          <h2>배정 작업</h2>
-          <p>라이더 확인과 이슈 해결 후 최종 확정할 수 있습니다.</p>
-          <button class="button button-secondary" @click="open('수동 배정 검토')">
-            수동 배정 검토</button
-          ><button class="button button-secondary" disabled>자동 배정 · 연결 전</button
-          ><button class="button button-primary" disabled>최종 확정 · 연결 전</button
-          ><button
-            v-if="group.status === '최종 확정'"
-            class="button button-secondary"
-            @click="open('긴급 라이더 교체 검토')"
+        <section class="ui-surface ui-stack">
+          <h2>배송 대상</h2>
+          <article v-for="item in group.deliveries" :key="item.deliveryId" class="ui-list-item">
+            <input
+              v-if="!item.assignmentId"
+              v-model="selectedDeliveryIds"
+              :value="item.deliveryId"
+              type="checkbox"
+              :disabled="busy"
+              :aria-label="`${item.deliveryId} 수동 배정 선택`"
+            />
+            <div>
+              <strong>{{ item.deliveryId }}</strong>
+              <p>
+                {{ item.status }} · {{ item.lunchboxQuantity }}식 · 배정
+                {{ item.assignmentId || '미배정' }}
+              </p>
+            </div>
+            <RouterLink
+              class="ops-link"
+              :to="{ name: 'admin-delivery-detail', params: { deliveryId: item.deliveryId } }"
+              >상세</RouterLink
+            >
+          </article>
+        </section>
+        <section class="ui-surface ui-stack">
+          <h2>수동 배정</h2>
+          <p class="ui-muted">미배정 배송을 선택한 뒤 배정할 라이더를 선택하세요.</p>
+          <label class="ui-field"
+            >라이더 후보<select v-model.number="selectedRiderId" :disabled="busy">
+              <option :value="null">라이더를 선택하세요</option>
+              <option
+                v-for="candidate in candidates"
+                :key="candidate.riderId"
+                :value="candidate.riderId"
+                :disabled="!candidate.isEligible && candidate.isAreaMatched"
+              >
+                라이더 {{ candidate.riderId }} · {{ candidate.assignedStopCount }}곳 /
+                {{ candidate.assignedLunchboxQuantity }}식{{
+                  candidate.isAreaMatched ? '' : ' · 지역 예외'
+                }}
+              </option>
+            </select></label
           >
-            긴급 교체 검토
-          </button>
-          <p class="ui-muted">
-            현재는 표시 내용을 확인하는 단계이며 배정·확정·교체 요청은 전송하지 않습니다.
+          <p v-if="selectedCandidate() && !selectedCandidate().isAreaMatched" class="ui-note">
+            담당 지역이 일치하지 않아 지역 예외 배정으로 처리됩니다.
           </p>
-        </aside>
-      </div>
-      <OperationReviewDialog
-        v-model:visible="isOpen"
-        :title="action"
-        :target="group.area + ' · ' + group.date + ' ' + group.slot"
-        :dirty="Boolean(candidate || reason)"
+          <label class="ui-field"
+            >배정 사유<select
+              v-model="manualReason"
+              :disabled="busy || !selectedCandidate()?.isAreaMatched"
+            >
+              <option
+                v-for="option in manualReasonOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select></label
+          >
+          <label v-if="manualReason === 'OTHER'" class="ui-field"
+            >상세 사유<textarea
+              v-model.trim="manualReasonDetail"
+              rows="3"
+              required
+              :disabled="busy"
+            />
+          </label>
+          <button
+            class="button button-primary"
+            :disabled="busy || !canManuallyAssign()"
+            @click="createManualAssignment"
+          >
+            선택한 배송 수동 배정
+          </button>
+        </section>
+        <section class="ui-surface ui-stack">
+          <h2>배정 현황</h2>
+          <article v-for="item in group.assignments" :key="item.assignmentId" class="ui-list-item">
+            <div>
+              <strong>배정 {{ item.assignmentId }} · 라이더 {{ item.riderId }}</strong>
+              <p>{{ item.status }} · {{ item.stopCount }}곳 · {{ item.lunchboxQuantity }}식</p>
+              <div v-if="replacementCandidates[item.assignmentId]" class="ui-actions">
+                <select
+                  v-model.number="replacementRiderIds[item.assignmentId]"
+                  class="ui-input"
+                  :disabled="busy"
+                >
+                  <option :value="null">교체 라이더를 선택하세요</option>
+                  <option
+                    v-for="candidate in replacementCandidates[item.assignmentId]"
+                    :key="candidate.riderId"
+                    :value="candidate.riderId"
+                    :disabled="!candidate.isEligible"
+                  >
+                    라이더 {{ candidate.riderId }} · {{ candidate.assignedStopCount }}곳 /
+                    {{ candidate.assignedLunchboxQuantity }}식
+                  </option>
+                </select>
+                <button
+                  class="button button-primary"
+                  :disabled="busy || !replacementRiderIds[item.assignmentId]"
+                  @click="replaceRider(item.assignmentId)"
+                >
+                  긴급 교체
+                </button>
+              </div>
+            </div>
+            <button
+              v-if="!replacementCandidates[item.assignmentId]"
+              class="button button-secondary"
+              :disabled="busy"
+              @click="loadReplacementCandidates(item.assignmentId)"
+            >
+              교체 후보 보기
+            </button>
+          </article>
+        </section>
+        <section class="ui-surface ui-stack">
+          <h2>배정 이슈</h2>
+          <article v-for="issue in group.issues" :key="issue.issueId" class="ui-list-item">
+            <div class="ui-stack">
+              <strong>이슈 {{ issue.issueId }} · 배정 {{ issue.assignmentId }}</strong>
+              <p>{{ issue.issueCode }} · {{ issue.issueDetail }}</p>
+              <p v-if="issue.resolution" class="ui-muted">처리 결과: {{ issue.resolution }}</p>
+              <div v-else class="ui-actions">
+                <button
+                  class="button button-secondary"
+                  :disabled="busy"
+                  @click="rejectAssignmentIssue(issue.issueId)"
+                >
+                  반려
+                </button>
+                <button
+                  v-if="!replacementCandidates[issue.assignmentId]"
+                  class="button button-secondary"
+                  :disabled="busy"
+                  @click="loadReplacementCandidates(issue.assignmentId)"
+                >
+                  재배정 후보 보기
+                </button>
+                <template v-else>
+                  <select
+                    v-model.number="issueRiderIds[issue.issueId]"
+                    class="ui-input"
+                    :disabled="busy"
+                  >
+                    <option :value="null">재배정 라이더를 선택하세요</option>
+                    <option
+                      v-for="candidate in replacementCandidates[issue.assignmentId]"
+                      :key="candidate.riderId"
+                      :value="candidate.riderId"
+                      :disabled="!candidate.isEligible"
+                    >
+                      라이더 {{ candidate.riderId }} · {{ candidate.assignedStopCount }}곳 /
+                      {{ candidate.assignedLunchboxQuantity }}식
+                    </option>
+                  </select>
+                  <button
+                    class="button button-primary"
+                    :disabled="busy || !issueRiderIds[issue.issueId]"
+                    @click="reassignAssignmentIssue(issue)"
+                  >
+                    재배정
+                  </button>
+                </template>
+              </div>
+            </div>
+          </article>
+          <p v-if="!group.issues.length" class="ui-empty">보고된 배정 이슈가 없습니다.</p>
+        </section></template
       >
-        <label class="ui-field"
-          >검토할 후보<select v-model="candidate" required>
-            <option value="">선택해 주세요</option>
-            <option>라이더 1</option>
-          </select></label
-        >
-        <p>
-          배송 대상 {{ items.length }}건의 전체 구성을 확인합니다. 선택만으로 배정이 바뀌지
-          않습니다.
-        </p>
-        <label class="ui-field"
-          >검토 사유<textarea v-model.trim="reason" required rows="3" />
-        </label>
-      </OperationReviewDialog>
-    </template>
+    </ContentState>
   </AdminFrame>
 </template>

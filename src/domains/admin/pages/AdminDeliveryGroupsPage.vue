@@ -1,15 +1,19 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import DatePicker from 'primevue/datepicker'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import AdminFrame from '../components/AdminFrame.vue'
-import { groups } from '../adminDeliveryPreview'
+import http from '../../../common/api/http.js'
+import { createAdminDeliveryAssignmentApi } from '../api/adminDeliveryAssignmentApi.js'
 import { datePickerPt, tableColumnPt, paginatorPt } from '../../../common/constants/primeUiPt'
 const route = useRoute()
 const router = useRouter()
+const api = createAdminDeliveryAssignmentApi(http)
+const groups = ref([])
+const loading = ref(false)
 const date = computed({
   get: () =>
     route.query.date && dayjs(String(route.query.date)).isValid()
@@ -25,14 +29,30 @@ const status = computed({
   get: () => String(route.query.status || ''),
   set: (value) => setFilter('status', value),
 })
-const filtered = computed(() =>
-  groups.filter(
-    (g) =>
-      (!date.value || g.date === dayjs(date.value).format('YYYY-MM-DD')) &&
-      (!slot.value || g.slot === slot.value) &&
-      (!status.value || g.status === status.value),
-  ),
-)
+const filtered = computed(() => groups.value)
+async function load() {
+  loading.value = true
+  try {
+    const response = await api.listDeliveryGroups({
+      deliveryDate: route.query.date || undefined,
+      deliverySlot: slot.value ? { 점심: 'LUNCH', 저녁: 'DINNER' }[slot.value] : undefined,
+      status: status.value || undefined,
+    })
+    groups.value = response.items.map((item) => ({
+      id: item.deliveryGroupId,
+      area: `배송 그룹 ${item.deliveryGroupId}`,
+      date: item.deliveryDate,
+      slot: { LUNCH: '점심', DINNER: '저녁' }[item.deliverySlot] || item.deliverySlot,
+      status: item.status,
+      count: item.deliveryCount,
+      rider: item.unassignedDeliveryCount
+        ? `미배정 ${item.unassignedDeliveryCount}건`
+        : `배정 완료 ${item.assignedDeliveryCount}건`,
+    }))
+  } finally {
+    loading.value = false
+  }
+}
 function setFilter(key, value) {
   router.replace({ query: { ...route.query, [key]: value || undefined } })
 }
@@ -46,6 +66,8 @@ function detail(id) {
     query: route.query,
   }
 }
+watch(() => route.query, load, { deep: true })
+onMounted(load)
 </script>
 <template>
   <AdminFrame title="배송 그룹" description="배송일과 시간대별 그룹을 찾아 배정 상태를 확인합니다.">
