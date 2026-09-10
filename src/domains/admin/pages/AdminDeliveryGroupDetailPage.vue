@@ -14,6 +14,8 @@ const notice = ref('')
 const candidates = ref([])
 const selectedDeliveryIds = ref([])
 const selectedRiderId = ref(null)
+const replacementCandidates = ref({})
+const replacementRiderIds = ref({})
 const manualReason = ref('OPERATIONAL_ADJUSTMENT')
 const manualReasonDetail = ref('')
 const manualReasonOptions = [
@@ -77,6 +79,36 @@ async function createManualAssignment() {
     notice.value = '수동 배정을 완료했습니다.'
   } catch (error) {
     notice.value = error.message || '수동 배정을 완료하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function loadReplacementCandidates(assignmentId) {
+  notice.value = ''
+  try {
+    const response = await api.listRiderCandidates(group.value.deliveryGroupId, { assignmentId })
+    replacementCandidates.value = { ...replacementCandidates.value, [assignmentId]: response.items }
+  } catch (error) {
+    notice.value = error.message || '교체 후보를 불러오지 못했습니다.'
+  }
+}
+async function replaceRider(assignmentId) {
+  const riderId = replacementRiderIds.value[assignmentId]
+  if (!riderId || !window.confirm('선택한 라이더로 긴급 교체할까요?')) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.replaceRider(assignmentId, {
+      newRiderId: riderId,
+      reasonCode: 'URGENT_OPERATIONAL_CHANGE',
+      reasonDetail: null,
+    })
+    replacementCandidates.value = { ...replacementCandidates.value, [assignmentId]: null }
+    replacementRiderIds.value = { ...replacementRiderIds.value, [assignmentId]: null }
+    await load()
+    notice.value = '라이더 긴급 교체를 완료했습니다.'
+  } catch (error) {
+    notice.value = error.message || '라이더 긴급 교체를 완료하지 못했습니다.'
   } finally {
     busy.value = false
   }
@@ -214,10 +246,45 @@ onMounted(load)
         </section>
         <section class="ui-surface ui-stack">
           <h2>배정 현황</h2>
-          <p v-for="item in group.assignments" :key="item.assignmentId">
-            배정 {{ item.assignmentId }} · 라이더 {{ item.riderId }} · {{ item.status }} ·
-            {{ item.stopCount }}곳
-          </p>
+          <article v-for="item in group.assignments" :key="item.assignmentId" class="ui-list-item">
+            <div>
+              <strong>배정 {{ item.assignmentId }} · 라이더 {{ item.riderId }}</strong>
+              <p>{{ item.status }} · {{ item.stopCount }}곳 · {{ item.lunchboxQuantity }}식</p>
+              <div v-if="replacementCandidates[item.assignmentId]" class="ui-actions">
+                <select
+                  v-model.number="replacementRiderIds[item.assignmentId]"
+                  class="ui-input"
+                  :disabled="busy"
+                >
+                  <option :value="null">교체 라이더를 선택하세요</option>
+                  <option
+                    v-for="candidate in replacementCandidates[item.assignmentId]"
+                    :key="candidate.riderId"
+                    :value="candidate.riderId"
+                    :disabled="!candidate.isEligible"
+                  >
+                    라이더 {{ candidate.riderId }} · {{ candidate.assignedStopCount }}곳 /
+                    {{ candidate.assignedLunchboxQuantity }}식
+                  </option>
+                </select>
+                <button
+                  class="button button-primary"
+                  :disabled="busy || !replacementRiderIds[item.assignmentId]"
+                  @click="replaceRider(item.assignmentId)"
+                >
+                  긴급 교체
+                </button>
+              </div>
+            </div>
+            <button
+              v-if="!replacementCandidates[item.assignmentId]"
+              class="button button-secondary"
+              :disabled="busy"
+              @click="loadReplacementCandidates(item.assignmentId)"
+            >
+              교체 후보 보기
+            </button>
+          </article>
         </section></template
       >
     </ContentState>
