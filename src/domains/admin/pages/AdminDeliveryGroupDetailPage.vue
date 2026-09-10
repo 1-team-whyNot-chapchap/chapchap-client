@@ -16,6 +16,7 @@ const selectedDeliveryIds = ref([])
 const selectedRiderId = ref(null)
 const replacementCandidates = ref({})
 const replacementRiderIds = ref({})
+const issueRiderIds = ref({})
 const manualReason = ref('OPERATIONAL_ADJUSTMENT')
 const manualReasonDetail = ref('')
 const manualReasonOptions = [
@@ -109,6 +110,40 @@ async function replaceRider(assignmentId) {
     notice.value = '라이더 긴급 교체를 완료했습니다.'
   } catch (error) {
     notice.value = error.message || '라이더 긴급 교체를 완료하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function rejectAssignmentIssue(issueId) {
+  const reasonDetail = window.prompt('이슈 반려 사유를 입력해 주세요.')
+  if (!reasonDetail?.trim()) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.rejectAssignmentIssue(issueId, { reasonDetail: reasonDetail.trim() })
+    await load()
+    notice.value = '배정 이슈를 반려했습니다.'
+  } catch (error) {
+    notice.value = error.message || '배정 이슈를 반려하지 못했습니다.'
+  } finally {
+    busy.value = false
+  }
+}
+async function reassignAssignmentIssue(issue) {
+  const newRiderId = issueRiderIds.value[issue.issueId]
+  if (!newRiderId || !window.confirm('선택한 라이더에게 재배정할까요?')) return
+  busy.value = true
+  notice.value = ''
+  try {
+    await api.reassignAssignmentIssue(issue.issueId, {
+      newRiderId,
+      reasonCode: 'OPERATIONAL_ADJUSTMENT',
+      reasonDetail: null,
+    })
+    await load()
+    notice.value = '배정 이슈를 재배정했습니다.'
+  } catch (error) {
+    notice.value = error.message || '배정 이슈를 재배정하지 못했습니다.'
   } finally {
     busy.value = false
   }
@@ -285,6 +320,59 @@ onMounted(load)
               교체 후보 보기
             </button>
           </article>
+        </section>
+        <section class="ui-surface ui-stack">
+          <h2>배정 이슈</h2>
+          <article v-for="issue in group.issues" :key="issue.issueId" class="ui-list-item">
+            <div class="ui-stack">
+              <strong>이슈 {{ issue.issueId }} · 배정 {{ issue.assignmentId }}</strong>
+              <p>{{ issue.issueCode }} · {{ issue.issueDetail }}</p>
+              <p v-if="issue.resolution" class="ui-muted">처리 결과: {{ issue.resolution }}</p>
+              <div v-else class="ui-actions">
+                <button
+                  class="button button-secondary"
+                  :disabled="busy"
+                  @click="rejectAssignmentIssue(issue.issueId)"
+                >
+                  반려
+                </button>
+                <button
+                  v-if="!replacementCandidates[issue.assignmentId]"
+                  class="button button-secondary"
+                  :disabled="busy"
+                  @click="loadReplacementCandidates(issue.assignmentId)"
+                >
+                  재배정 후보 보기
+                </button>
+                <template v-else>
+                  <select
+                    v-model.number="issueRiderIds[issue.issueId]"
+                    class="ui-input"
+                    :disabled="busy"
+                  >
+                    <option :value="null">재배정 라이더를 선택하세요</option>
+                    <option
+                      v-for="candidate in replacementCandidates[issue.assignmentId]"
+                      :key="candidate.riderId"
+                      :value="candidate.riderId"
+                      :disabled="!candidate.isEligible"
+                    >
+                      라이더 {{ candidate.riderId }} · {{ candidate.assignedStopCount }}곳 /
+                      {{ candidate.assignedLunchboxQuantity }}식
+                    </option>
+                  </select>
+                  <button
+                    class="button button-primary"
+                    :disabled="busy || !issueRiderIds[issue.issueId]"
+                    @click="reassignAssignmentIssue(issue)"
+                  >
+                    재배정
+                  </button>
+                </template>
+              </div>
+            </div>
+          </article>
+          <p v-if="!group.issues.length" class="ui-empty">보고된 배정 이슈가 없습니다.</p>
         </section></template
       >
     </ContentState>
