@@ -23,6 +23,7 @@ const exceptionSlot = ref('LUNCH')
 const exceptionWorking = ref(false)
 const exceptionReason = ref('OTHER')
 const exceptionDetail = ref('')
+const editingException = ref(null)
 const activeReason = ref('OPERATIONAL_HOLD')
 const activeReasonDetail = ref('')
 const actionError = ref('')
@@ -133,6 +134,46 @@ async function createScheduleException() {
     await load()
   } catch (error) {
     actionError.value = error.message || '예외 일정을 등록하지 못했습니다.'
+  }
+}
+function startExceptionEdit(item) {
+  editingException.value = item
+  exceptionDate.value = new Date(`${item.scheduleDate}T00:00:00`)
+  exceptionSlot.value = item.deliverySlot
+  exceptionWorking.value = item.isWorking
+  exceptionReason.value = item.reasonCode
+  exceptionDetail.value = item.reasonDetail || ''
+  actionError.value = ''
+}
+function cancelExceptionEdit() {
+  editingException.value = null
+  exceptionDetail.value = ''
+}
+async function submitScheduleException() {
+  if (editingException.value) {
+    return updateScheduleException()
+  }
+  return createScheduleException()
+}
+async function updateScheduleException() {
+  actionError.value = ''
+  if (exceptionReason.value === 'OTHER' && !exceptionDetail.value) {
+    actionError.value = '기타 사유의 상세 내용을 입력해 주세요.'
+    return
+  }
+  try {
+    await api.updateScheduleException(route.params.riderId, editingException.value.exceptionId, {
+      isWorking: exceptionWorking.value,
+      reasonCode: exceptionReason.value,
+      reasonDetail: exceptionDetail.value || null,
+      version: editingException.value.version,
+    })
+    cancelExceptionEdit()
+    await load()
+  } catch (error) {
+    actionError.value =
+      error.message || '예외 일정을 수정하지 못했습니다. 최신 상태를 다시 확인해 주세요.'
+    await load()
   }
 }
 async function deleteScheduleException(item) {
@@ -264,15 +305,21 @@ onMounted(load)
           </ul>
         </template>
         <template v-else-if="tab === '예외 일정'">
-          <form class="ui-stack" @submit.prevent="createScheduleException">
+          <form class="ui-stack" @submit.prevent="submitScheduleException">
             <div class="ui-actions">
               <DatePicker
                 v-model="exceptionDate"
                 date-format="yy.mm.dd"
                 :manual-input="false"
                 :pt="datePickerPt"
+                :disabled="Boolean(editingException)"
               />
-              <select v-model="exceptionSlot" class="ui-input" aria-label="예외 시간대">
+              <select
+                v-model="exceptionSlot"
+                class="ui-input"
+                aria-label="예외 시간대"
+                :disabled="Boolean(editingException)"
+              >
                 <option v-for="option in slotOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
@@ -293,7 +340,17 @@ onMounted(load)
                 class="ui-input"
                 placeholder="상세 사유 (기타는 필수)"
               />
-              <button class="button button-secondary">예외 일정 추가</button>
+              <button class="button button-secondary">
+                {{ editingException ? '예외 일정 저장' : '예외 일정 추가' }}
+              </button>
+              <button
+                v-if="editingException"
+                class="button button-secondary"
+                type="button"
+                @click="cancelExceptionEdit"
+              >
+                수정 취소
+              </button>
             </div>
           </form>
           <ul class="ui-list">
@@ -312,13 +369,14 @@ onMounted(load)
                 </p>
               </div>
               <span v-if="item.leaveRequestId" class="ui-muted">휴무 신청 연동</span>
-              <button
-                v-else
-                class="button button-danger-outline"
-                @click="deleteScheduleException(item)"
-              >
-                삭제
-              </button>
+              <div v-else class="ui-actions">
+                <button class="button button-secondary" @click="startExceptionEdit(item)">
+                  수정
+                </button>
+                <button class="button button-danger-outline" @click="deleteScheduleException(item)">
+                  삭제
+                </button>
+              </div>
             </li>
             <li v-if="!exceptions.length" class="ui-empty">등록된 예외 일정이 없습니다.</li>
           </ul>
