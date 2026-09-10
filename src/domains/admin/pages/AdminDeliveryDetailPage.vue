@@ -14,6 +14,7 @@ const photoLoading = ref(false)
 const failureDetail = ref('')
 const recoveryReason = ref('')
 const recoveryRiderId = ref('')
+const correctionValue = ref('')
 async function load() {
   state.value = 'loading'
   try {
@@ -68,6 +69,16 @@ async function recoverDelivery() {
     },
   })
   recoveryReason.value = ''
+  await load()
+}
+async function correctFailure() {
+  if (!correctionValue.value.trim() || !window.confirm('실패 결과를 정정할까요?')) return
+  await api.correctFailure(delivery.value.deliveryId, {
+    changes: [{ fieldName: 'failureDetail', afterValue: correctionValue.value.trim() }],
+    reasonCode: 'OTHER',
+    reasonDetail: correctionValue.value.trim(),
+  })
+  correctionValue.value = ''
   await load()
 }
 watch(() => route.params.deliveryId, load)
@@ -141,6 +152,18 @@ onMounted(load)
               @click="recoverDelivery"
             >
               실패 결과 복구
+            </button>
+          </section>
+          <section v-if="delivery.status === 'FAILED'" class="ui-surface ui-stack">
+            <h2>실패 결과 정정</h2>
+            <label class="ui-field"
+              >정정 사유<textarea v-model.trim="correctionValue" rows="3" /></label
+            ><button
+              class="button button-secondary"
+              :disabled="!correctionValue"
+              @click="correctFailure"
+            >
+              결과 정정
             </button>
           </section>
           <section class="ui-surface ui-stack">
