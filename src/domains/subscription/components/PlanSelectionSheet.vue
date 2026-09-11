@@ -1,7 +1,8 @@
 <script setup>
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { Check, X } from 'lucide-vue-next'
 import { useAppStore } from '../../../stores/useAppStore'
+import { usePlanStore } from '../stores/usePlanStore.js'
 
 const props = defineProps({
   isOpen: {
@@ -12,8 +13,12 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'navigate'])
 const appStore = useAppStore()
-const selectedPlan = ref('nutrition')
+const planStore = usePlanStore()
+const selectedPlan = ref('')
 const sheet = ref(null)
+const selectedPlanName = computed(
+  () => planStore.plans.find((plan) => plan.planId === selectedPlan.value)?.name || '플랜',
+)
 let returnFocus = null
 let previousOverflow = ''
 watch(
@@ -25,6 +30,11 @@ watch(
       document.body.style.overflow = 'hidden'
       await nextTick()
       sheet.value?.querySelector('button')?.focus()
+      const plans = await planStore.fetchPlans()
+      if (!props.isOpen) return
+      selectedPlan.value = plans.some((plan) => plan.planId === appStore.selectedPlan)
+        ? appStore.selectedPlan
+        : plans[0]?.planId || ''
     } else {
       document.body.style.overflow = previousOverflow
       returnFocus?.focus()
@@ -55,36 +65,24 @@ function handleSheetKey(event) {
   }
 }
 
-const plans = [
-  {
-    id: 'healthy',
-    name: '건강식',
-    description: '가볍고 부담 없이 즐기는 식사',
-    minimum: '회차별 메뉴 3개 이상',
-  },
-  {
-    id: 'nutrition',
-    name: '영양식',
-    description: '균형 잡힌 한 끼를 위한 기본 추천 플랜',
-    minimum: '회차별 메뉴 3개 이상',
-    recommended: true,
-  },
-  {
-    id: 'hearty',
-    name: '든든식',
-    description: '든든한 한 끼가 필요한 날을 위한 식사',
-    minimum: '회차별 메뉴 6개 이상',
-  },
-]
-
 function closeSheet() {
   appStore.closePlanSheet()
   emit('close')
 }
 
 function startSubscription() {
+  if (!selectedPlan.value) return
   appStore.startPlanSelection(selectedPlan.value)
   emit('navigate', 'wf-013')
+}
+
+async function retryPlans() {
+  const plans = await planStore.fetchPlans(true)
+  selectedPlan.value = plans[0]?.planId || ''
+}
+
+function formatUnitPrice(unitPrice) {
+  return `${Number(unitPrice).toLocaleString('ko-KR')}원 / 1식`
 }
 </script>
 
@@ -106,28 +104,44 @@ function startSubscription() {
       <h2 id="plan-selection-sheet-title">나에게 맞는 플랜을<br />선택해주세요.</h2>
       <p>선택한 플랜으로 구독 신청을 이어갑니다. 실제 가격은 결제 전에 안내됩니다.</p>
 
-      <div class="plan-selection-options" role="radiogroup" aria-label="구독 플랜 선택">
+      <div
+        v-if="['idle', 'loading'].includes(planStore.listStatus)"
+        class="ui-empty sheet-state"
+        aria-busy="true"
+      >
+        <strong>플랜을 불러오고 있어요.</strong>
+      </div>
+
+      <div v-else-if="planStore.listStatus === 'error'" class="ui-empty sheet-state" role="alert">
+        <strong>플랜을 불러오지 못했어요.</strong>
+        <button class="button button-secondary" type="button" @click="retryPlans">다시 시도</button>
+      </div>
+
+      <div v-else-if="planStore.listStatus === 'empty'" class="ui-empty sheet-state">
+        <strong>현재 선택할 수 있는 플랜이 없어요.</strong>
+      </div>
+
+      <div v-else class="plan-selection-options" role="radiogroup" aria-label="구독 플랜 선택">
         <button
-          v-for="plan in plans"
-          :key="plan.id"
+          v-for="plan in planStore.plans"
+          :key="plan.planId"
           class="plan-selection-option"
           :class="{
-            'is-selected': selectedPlan === plan.id,
-            'is-recommended': plan.recommended,
+            'is-selected': selectedPlan === plan.planId,
           }"
           type="button"
           role="radio"
-          :aria-checked="selectedPlan === plan.id"
-          @click="selectedPlan = plan.id"
+          :aria-checked="selectedPlan === plan.planId"
+          @click="selectedPlan = plan.planId"
         >
           <span class="plan-selection-option__top">
-            <small>{{ plan.recommended ? '추천 플랜' : '선택 가능' }}</small>
-            <Check v-if="selectedPlan === plan.id" :size="18" aria-hidden="true" />
+            <small>선택 가능</small>
+            <Check v-if="selectedPlan === plan.planId" :size="18" aria-hidden="true" />
           </span>
           <strong>{{ plan.name }}</strong>
           <span>{{ plan.description }}</span>
-          <span>{{ plan.minimum }}</span>
-          <b>가격 미정</b>
+          <span>플랜별 고정 메뉴 안내</span>
+          <b>{{ formatUnitPrice(plan.unitPrice) }}</b>
         </button>
       </div>
 
@@ -135,8 +149,13 @@ function startSubscription() {
         <button class="button button-secondary" type="button" @click="closeSheet">
           나중에 결정
         </button>
-        <button class="button button-primary" type="button" @click="startSubscription">
-          {{ plans.find((plan) => plan.id === selectedPlan)?.name }} 선택하기
+        <button
+          class="button button-primary"
+          type="button"
+          :disabled="!selectedPlan"
+          @click="startSubscription"
+        >
+          {{ selectedPlanName }} 선택하기
         </button>
       </div>
     </section>
@@ -208,6 +227,11 @@ function startSubscription() {
   width: 100%;
 }
 
+.sheet-state {
+  min-height: 180px;
+  margin-top: 24px;
+}
+
 .plan-selection-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -232,10 +256,6 @@ function startSubscription() {
   justify-content: space-between;
   align-items: center;
   color: var(--color-primary-pressed);
-}
-
-.plan-selection-option.is-recommended .plan-selection-option__top {
-  color: #a35d13;
 }
 
 .plan-selection-option small,
@@ -307,11 +327,6 @@ function startSubscription() {
 <style scoped>
 .plan-selection-option.is-selected {
   border: 2px solid var(--color-primary);
-  background: var(--color-primary-soft);
-}
-
-.plan-selection-option.is-recommended.is-selected {
-  border-color: var(--color-primary);
   background: var(--color-primary-soft);
 }
 </style>
