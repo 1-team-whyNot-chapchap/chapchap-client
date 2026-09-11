@@ -41,7 +41,7 @@ async function sendLatest() {
     state.lastSentAt = Date.now()
   } catch (error) {
     // The server is authoritative when an admin finished the rider's last delivery.
-    if (error.response?.data?.code === 'DELIVERY_049' || error.response?.status === 409) stop()
+    if (error.response?.data?.code === 'DELIVERY_048' || error.response?.status === 409) stop()
   } finally {
     sending = false
   }
