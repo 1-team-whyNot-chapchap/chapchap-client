@@ -48,9 +48,7 @@ const activeNavigation = computed(() => {
   if (
     [
       'plans',
-      'wf-011',
-      'wf-012',
-      'plan-hearty-detail',
+      'plan-detail',
       'wf-013',
       'wf-014',
       'wf-015',
@@ -73,7 +71,6 @@ const activeNavigation = computed(() => {
       'wf-023',
       'wf-024',
       'wf-025',
-      'delivery-menu-edit',
       'delivery-conditions-edit',
       'wf-054',
     ].includes(routeName)
