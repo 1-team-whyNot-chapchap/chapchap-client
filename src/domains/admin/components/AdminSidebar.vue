@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import AdminNavigationGroup from './AdminNavigationGroup.vue'
+import LogoutButton from '../../auth/components/LogoutButton.vue'
 
 const emit = defineEmits(['navigate'])
 const props = defineProps({
@@ -99,6 +100,7 @@ function navigate(route) {
     >
       고객 화면으로
     </button>
+    <LogoutButton />
   </aside>
 </template>
 

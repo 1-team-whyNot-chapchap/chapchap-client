@@ -2,6 +2,14 @@
 import { computed, ref } from 'vue'
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-vue-next'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
+import { socialLoginUrl } from '../../../common/api/http.js'
+import { RouterLink, useRoute } from 'vue-router'
+const route = useRoute()
+function startSocial(provider) {
+  if (selectedProvider.value) return
+  selectedProvider.value = provider
+  window.location.assign(socialLoginUrl(provider))
+}
 
 const props = defineProps({
   pageId: {
@@ -100,7 +108,7 @@ function continueAfterSubmit() {
 
 <template>
   <div class="page auth-page design-review-page">
-    <DesignPreview title="로그인" :allow-empty="false">
+    <component :is="pageId === '002' ? 'div' : DesignPreview" title="로그인" :allow-empty="false">
       <button
         class="auth-brand"
         type="button"
@@ -134,7 +142,8 @@ function continueAfterSubmit() {
               class="social-login-button social-login-button--kakao"
               type="button"
               aria-label="카카오로 로그인"
-              @click="selectedProvider = '카카오'"
+              :disabled="Boolean(selectedProvider)"
+              @click="startSocial('kakao')"
             >
               <img src="/images/social/kakao-login-ko-narrow.png" alt="" width="366" height="90" />
             </button>
@@ -142,15 +151,19 @@ function continueAfterSubmit() {
               class="social-login-button social-login-button--google"
               type="button"
               aria-label="Google로 로그인"
-              @click="selectedProvider = 'Google'"
+              :disabled="Boolean(selectedProvider)"
+              @click="startSocial('google')"
             >
               <img src="/images/social/google-signin-light.png" alt="" width="720" height="160" />
             </button>
           </div>
           <p v-if="selectedProvider" class="social-preview" role="status">
-            {{ selectedProvider }} 버튼을 선택했어요. 디자인 미리보기에서는 계정을 연결하지 않아요.
+            소셜 로그인으로 이동하고 있습니다.
           </p>
-          <p class="social-entry__note">처음 오셨나요? 같은 버튼으로 가입을 시작할 수 있어요.</p>
+          <p v-if="route.query.reason === 'expired'" class="social-entry__note" role="status">
+            로그인이 만료되었거나 계정 상태가 바뀌었습니다. 같은 소셜 계정으로 다시 로그인해 주세요.
+          </p>
+          <p class="social-entry__note">가입한 카카오·구글 계정으로 로그인해 주세요.</p>
           <div class="rider-login-entry">
             <p>라이더로 등록하거나 배송 업무를 시작하시나요?</p>
             <RouterLink :to="{ name: 'rider-login' }">라이더 로그인</RouterLink>
@@ -231,9 +244,11 @@ function continueAfterSubmit() {
           </button>
         </p>
 
-        <p class="form-help">디자인 미리보기 · 실제 계정은 연결되지 않아요.</p>
+        <p v-if="pageId !== '002'" class="form-help">
+          디자인 미리보기 · 실제 계정은 연결되지 않아요.
+        </p>
       </section>
-    </DesignPreview>
+    </component>
   </div>
 </template>
 

@@ -366,14 +366,6 @@ function toggleFaq(id) {
   font-weight: 800;
   text-decoration: none;
 }
-.button,
-.text-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  text-decoration: none;
-}
 .content-section {
   padding: 104px var(--page-padding-desktop) 0;
   scroll-margin-top: 88px;
@@ -434,11 +426,7 @@ function toggleFaq(id) {
   max-width: 430px;
 }
 .text-action {
-  min-height: 42px;
   margin-top: 24px;
-  border-bottom: 1px solid var(--color-text);
-  font-size: var(--font-body);
-  font-weight: 800;
 }
 .plan-intro__rules {
   display: grid;

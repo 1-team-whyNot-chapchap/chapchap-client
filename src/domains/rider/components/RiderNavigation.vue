@@ -1,20 +1,21 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 import { CalendarDays, PackageCheck, UserRound } from 'lucide-vue-next'
-import { useRiderPreviewStore } from '../riderPreviewStore'
-const store = useRiderPreviewStore()
+import { authSession } from '../../../common/api/http.js'
+import LogoutButton from '../../auth/components/LogoutButton.vue'
 </script>
 <template>
   <nav class="rider-navigation" aria-label="라이더 업무">
     <span class="rider-navigation-user" aria-label="라이더 이름">
       <UserRound :size="18" aria-hidden="true" />
-      <span>{{ store.profile.name }}님</span>
+      <span>{{ authSession.state.user?.name || '라이더' }}님</span>
     </span>
     <RouterLink to="/rider/deliveries"
       ><PackageCheck :size="18" aria-hidden="true" />배정 목록</RouterLink
     ><RouterLink to="/rider/schedule"
       ><CalendarDays :size="18" aria-hidden="true" />근무 일정</RouterLink
     >
+    <LogoutButton />
   </nav>
 </template>
 <style scoped>

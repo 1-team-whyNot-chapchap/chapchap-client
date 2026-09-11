@@ -1,5 +1,26 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { pageCatalog } from './pageCatalog'
+import { authSession } from '../common/api/http.js'
+import { createAccessGuard } from '../domains/auth/routeAccess.js'
+import { loginPath } from '../domains/auth/authSession.js'
+
+// 서버의 /auth/callback 리다이렉트를 hash router 경로로 변환한다.
+// 전달받은 문자열로 외부 이동 경로를 만들지 않는다.
+if (window.location.pathname === '/auth/callback') {
+  const query = new URLSearchParams(window.location.search)
+  const safe = new URLSearchParams()
+  for (const key of ['code', 'signupSessionId']) if (query.has(key)) safe.set(key, query.get(key))
+  window.history.replaceState(null, '', `/#/auth/callback${safe.size ? `?${safe}` : ''}`)
+}
+
+// PortOne mobile redirects use a normal path, not a URL fragment.
+if (window.location.pathname === '/signup/identity-callback') {
+  const query = new URLSearchParams(window.location.search)
+  const safe = new URLSearchParams()
+  for (const key of ['code', 'identityVerificationId'])
+    if (query.has(key)) safe.set(key, query.get(key))
+  window.history.replaceState(null, '', `/#/signup${safe.size ? `?${safe}` : ''}`)
+}
 
 // 동적 import는 방문한 페이지의 코드만 내려받아 첫 화면의 파일 크기를 줄입니다.
 const AddressFormPage = () => import('../domains/customer/pages/AddressFormPage.vue')
@@ -11,6 +32,8 @@ const AdminAccountManagementPage = () =>
 const AdminDashboard = () => import('../domains/admin/pages/AdminWorkHomePage.vue')
 const AdminDeliveryAssignmentPage = () =>
   import('../domains/admin/pages/AdminDeliveryAssignmentPage.vue')
+const AdminIntegrationEventsPage = () =>
+  import('../domains/admin/pages/AdminIntegrationEventsPage.vue')
 const AdminManagementPage = () => import('../domains/admin/pages/AdminManagementPage.vue')
 const AdminNotificationPage = () => import('../domains/admin/pages/AdminNotificationPage.vue')
 const AdminOwnerQuotaPage = () => import('../domains/admin/pages/AdminOwnerQuotaPage.vue')
@@ -24,7 +47,7 @@ const AdminCancellationManagementPage = () =>
   import('../domains/admin/pages/AdminCancellationManagementPage.vue')
 const AdminWorkspacePage = () => import('../domains/admin/pages/AdminWorkspacePage.vue')
 const AuthPage = () => import('../domains/auth/pages/AuthPage.vue')
-const SignupDesignPage = () => import('../domains/auth/pages/SignupDesignPage.vue')
+const SignupPage = () => import('../domains/auth/pages/SignupPage.vue')
 const ProfileDesignPage = () => import('../domains/customer/pages/ProfileDesignPage.vue')
 const FaqDesignPage = () => import('../domains/customer/pages/FaqDesignPage.vue')
 const CustomerSupportPage = () => import('../domains/customer/pages/CustomerSupportPage.vue')
@@ -105,6 +128,18 @@ const adminRoutes = pageCatalog
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    {
+      path: '/auth/callback',
+      name: 'auth-callback',
+      component: () => import('../domains/auth/pages/AuthCallbackPage.vue'),
+      meta: { layout: 'minimal' },
+    },
+    {
+      path: '/admin/password/initial',
+      name: 'admin-initial-password',
+      component: AdminPasswordPage,
+      meta: { layout: 'minimal' },
+    },
     { path: '/', name: 'home', component: HomePage },
     { path: '/help/chat', name: 'consultation-design', component: ConsultationDesignPage },
     { path: '/help/faq', name: 'faq-design', component: FaqDesignPage },
@@ -119,7 +154,7 @@ const router = createRouter({
     {
       path: '/signup',
       name: 'signup',
-      component: SignupDesignPage,
+      component: SignupPage,
       meta: { layout: 'minimal' },
     },
     { path: '/menu', name: 'menu', component: MenuListPage },
@@ -130,27 +165,10 @@ const router = createRouter({
       meta: { layout: 'minimal' },
     },
     { path: '/plans', name: 'plans', component: PlanPage },
+    { path: '/plans/:planId', name: 'plan-detail', component: PlanDetailPage, props: true },
     ...authRoutes,
     { path: '/wf-008', name: 'wf-008', component: MenuListPage },
     { path: '/wf-009', name: 'wf-009', component: MenuDetailPage },
-    {
-      path: '/wf-011',
-      name: 'wf-011',
-      component: PlanDetailPage,
-      props: { planId: 'healthy' },
-    },
-    {
-      path: '/wf-012',
-      name: 'wf-012',
-      component: PlanDetailPage,
-      props: { planId: 'nutrition' },
-    },
-    {
-      path: '/plans/hearty',
-      name: 'plan-hearty-detail',
-      component: PlanDetailPage,
-      props: { planId: 'hearty' },
-    },
     { path: '/subscription', name: 'subscription', component: SubscriptionPage },
     { path: '/subscription/list', name: 'subscription-list', component: SubscriptionListPage },
     { path: '/subscription/detail', name: 'wf-021', component: SubscriptionDetailPage },
@@ -179,12 +197,6 @@ const router = createRouter({
       path: '/subscription/settings/confirm',
       name: 'wf-025',
       component: SubscriptionSettingsConfirmPage,
-    },
-    {
-      path: '/subscription/delivery/menu',
-      name: 'delivery-menu-edit',
-      component: MenuBuilder,
-      props: { mode: 'delivery' },
     },
     {
       path: '/subscription/delivery/conditions',
@@ -251,6 +263,12 @@ const router = createRouter({
       meta: { area: 'admin' },
     },
     {
+      path: '/admin/integration-events',
+      name: 'admin-integration-events',
+      component: AdminIntegrationEventsPage,
+      meta: { area: 'admin' },
+    },
+    {
       path: '/admin/delivery-groups',
       name: 'admin-delivery-groups',
       component: () => import('../domains/admin/pages/AdminDeliveryGroupsPage.vue'),
@@ -278,6 +296,12 @@ const router = createRouter({
       path: '/admin/riders/:riderId',
       name: 'admin-rider-operation',
       component: () => import('../domains/admin/pages/AdminRiderOperationPage.vue'),
+      meta: { area: 'admin' },
+    },
+    {
+      path: '/admin/rider-leave-requests',
+      name: 'admin-rider-leave-requests',
+      component: () => import('../domains/admin/pages/AdminRiderLeaveRequestsPage.vue'),
       meta: { area: 'admin' },
     },
     {
@@ -556,6 +580,13 @@ const router = createRouter({
       meta: { layout: 'minimal' },
     },
   ],
+})
+
+router.beforeEach(createAccessGuard(authSession))
+authSession.onExpired(() => {
+  const path = router.currentRoute.value.path
+  if (path !== '/auth/callback' && !path.endsWith('/login'))
+    router.replace({ path: loginPath(path), query: { reason: 'expired' } })
 })
 
 export default router

@@ -1,5 +1,7 @@
 <script setup>
 import { Bike, LayoutDashboard, LogIn } from 'lucide-vue-next'
+import LogoutButton from '../../domains/auth/components/LogoutButton.vue'
+import { authSession } from '../api/http.js'
 
 defineProps({
   currentView: {
@@ -78,6 +80,7 @@ const emit = defineEmits(['navigate'])
       </button>
       <button
         class="header-auth-button"
+        v-if="!authSession.state.user"
         type="button"
         aria-label="로그인 화면으로"
         @click="emit('navigate', 'login')"
@@ -85,6 +88,7 @@ const emit = defineEmits(['navigate'])
         <LogIn :size="17" aria-hidden="true" />
         <span>로그인</span>
       </button>
+      <LogoutButton />
     </div>
   </header>
 </template>

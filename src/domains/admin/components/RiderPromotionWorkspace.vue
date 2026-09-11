@@ -2,11 +2,13 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Search, UserRound, ShieldCheck } from 'lucide-vue-next'
 import ConfirmDialog from '../../../common/components/feedback/ConfirmDialog.vue'
+import http from '../../../common/api/http.js'
+import { createRiderPromotionApi } from '../api/riderPromotionApi.js'
 import {
   isValidPhone,
   promotionBlockReason,
-  promotionExamples,
-  searchPreviewUsers,
+  promotionErrorMessage,
+  promoteConfirmedUser,
 } from '../riderPromotion.js'
 
 const phone = ref('')
@@ -17,14 +19,18 @@ const dialogOpen = ref(false)
 const state = ref('idle')
 const error = ref('')
 const completedName = ref('')
+const page = ref(0)
+const total = ref(0)
+const hasNext = ref(false)
+const api = createRiderPromotionApi(http)
 let requestId = 0
-const selected = computed(() => results.value.find((user) => user.id === selectedId.value))
+const selected = computed(() => results.value.find((user) => user.userId === selectedId.value))
+const busy = computed(() => ['loading', 'submitting'].includes(state.value))
 const blocked = computed(() => promotionBlockReason(selected.value))
-const canPreview = computed(
+const canPromote = computed(
   () => state.value === 'ready' && !blocked.value && identityConfirmed.value,
 )
 const roleLabel = (role) => ({ CUSTOMER: '고객', RIDER: '라이더' })[role] || '변경 대상 아님'
-const progressLabel = (value) => (value === true ? '있음' : value === false ? '없음' : '확인 불가')
 
 function resetSelection() {
   selectedId.value = ''
@@ -37,6 +43,9 @@ watch(
   () => {
     requestId++
     results.value = []
+    page.value = 0
+    total.value = 0
+    hasNext.value = false
     state.value = 'idle'
     error.value = ''
     resetSelection()
@@ -49,7 +58,8 @@ watch(selectedId, () => {
 })
 onBeforeUnmount(() => requestId++)
 
-async function search() {
+async function search(targetPage = 0) {
+  if (busy.value) return
   resetSelection()
   results.value = []
   if (!isValidPhone(phone.value)) {
@@ -61,30 +71,44 @@ async function search() {
   state.value = 'loading'
   error.value = ''
   try {
-    // 조회 대기 화면을 검수하기 위한 로컬 지연. 네트워크 요청은 하지 않습니다.
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    const response = await api.search(phone.value, targetPage)
     if (current !== requestId) return
-    results.value = searchPreviewUsers(phone.value)
+    results.value = response.users
+    page.value = response.page
+    total.value = response.totalElements
+    hasNext.value = response.hasNext
     state.value = 'ready'
-  } catch {
+  } catch (failure) {
     if (current !== requestId) return
-    error.value = '검색하지 못했습니다. 다시 시도해 주세요.'
+    error.value = promotionErrorMessage(failure)
     state.value = 'error'
   }
 }
 
-function useExample(value) {
-  phone.value = value
-  search()
-}
-
-function confirmPreview() {
-  if (!canPreview.value) return
-  completedName.value = selected.value.name
+async function confirmPromotion() {
+  if (!canPromote.value) return
+  const target = { ...selected.value }
+  const current = ++requestId
+  state.value = 'submitting'
   dialogOpen.value = false
-  identityConfirmed.value = false
-  state.value = 'complete'
-  // 실제 역할, 인증 정보, 서버 데이터는 변경하지 않습니다.
+  error.value = ''
+  try {
+    await promoteConfirmedUser(api, target, identityConfirmed.value)
+    if (current !== requestId) return
+    completedName.value = target.name
+    results.value = results.value.map((user) =>
+      user.userId === target.userId ? { ...user, role: 'RIDER' } : user,
+    )
+    state.value = 'complete'
+  } catch (failure) {
+    if (current !== requestId) return
+    error.value = promotionErrorMessage(failure)
+    results.value = []
+    resetSelection()
+    state.value = 'error'
+  } finally {
+    if (current === requestId) identityConfirmed.value = false
+  }
 }
 </script>
 
@@ -95,11 +119,10 @@ function confirmPreview() {
       <p>가입한 사용자를 찾아 확인한 뒤 라이더로 변경합니다.</p>
     </div>
   </header>
-  <p class="ui-sample">화면 미리보기 · 가상 사용자만 검색되며 실제 권한은 변경되지 않습니다.</p>
   <div class="promotion-layout">
     <section class="ui-surface ui-stack" aria-labelledby="rider-search-heading">
       <h2 id="rider-search-heading">1. 사용자 찾기</h2>
-      <form class="ui-stack" @submit.prevent="search">
+      <form class="ui-stack" @submit.prevent="search(0)">
         <div class="ui-stack promotion-field">
           <label for="rider-search-phone">가입한 휴대폰 번호</label>
           <div class="promotion-search">
@@ -111,11 +134,12 @@ function confirmPreview() {
               inputmode="tel"
               autocomplete="off"
               maxlength="20"
+              :disabled="busy"
               placeholder="010-0000-0000"
               :aria-invalid="Boolean(error)"
               aria-describedby="phone-help phone-error"
             />
-            <button class="button button-primary" :disabled="state === 'loading'" type="submit">
+            <button class="button button-primary" :disabled="busy" type="submit">
               <Search :size="18" aria-hidden="true" />{{ state === 'loading' ? '검색 중' : '검색' }}
             </button>
           </div>
@@ -125,21 +149,6 @@ function confirmPreview() {
           <p id="phone-error" class="promotion-error" role="alert">{{ error }}</p>
         </div>
       </form>
-      <details class="promotion-examples">
-        <summary>가상 사용자로 흐름 확인하기</summary>
-        <div class="ui-stack">
-          <button
-            v-for="example in promotionExamples"
-            :key="example.phone"
-            type="button"
-            class="promotion-example"
-            @click="useExample(example.phone)"
-          >
-            <span>{{ example.label }}</span
-            ><span>{{ example.phone }}</span>
-          </button>
-        </div>
-      </details>
       <div aria-live="polite" :aria-busy="state === 'loading'">
         <div v-if="state === 'loading'" class="ui-empty"><p>사용자를 찾고 있습니다.</p></div>
         <div v-else-if="state === 'idle'" class="ui-empty">
@@ -153,31 +162,50 @@ function confirmPreview() {
           </p>
         </div>
         <div v-else-if="results.length" class="ui-stack">
-          <p>{{ results.length }}명 검색됨 · 가상 데이터</p>
-          <p v-if="results.length > 1" class="ui-note">
-            같은 번호의 계정이 여러 개입니다. 이름과 가입 정보를 대조하고 대상을 직접 선택해 주세요.
+          <p>총 {{ total }}명 · {{ page + 1 }}페이지</p>
+          <p v-if="total > 1" class="ui-note">
+            같은 번호의 계정이 여러 개입니다. 이름과 사용자 ID를 대조하고 대상을 직접 선택해 주세요.
           </p>
-          <fieldset class="promotion-results" :disabled="state === 'complete'">
+          <fieldset class="promotion-results" :disabled="busy || state === 'complete'">
             <legend class="promotion-legend">라이더로 변경할 사용자 선택</legend>
             <label
               v-for="user in results"
-              :key="user.id"
+              :key="user.userId"
               class="promotion-result"
-              :class="{ 'is-selected': selectedId === user.id }"
+              :class="{ 'is-selected': selectedId === user.userId }"
             >
-              <input v-model="selectedId" type="radio" name="rider-target" :value="user.id" />
+              <input v-model="selectedId" type="radio" name="rider-target" :value="user.userId" />
               <span class="promotion-person"
                 ><strong>{{ user.name }}</strong
-                ><span>{{ user.provider }} · 가입 {{ user.joinedAt }}</span
-                ><small>{{ user.id }}</small></span
+                ><small>사용자 ID {{ user.userId }}</small></span
               >
               <span
-                >{{ roleLabel(user.role) }} · {{ user.status === 'ACTIVE' ? '활성' : '정지' }}</span
+                >{{ roleLabel(user.role) }} ·
+                {{
+                  { ACTIVE: '활성', SUSPENDED: '정지', WITHDRAWN: '탈퇴' }[user.status] ||
+                  '확인 불가'
+                }}</span
               >
             </label>
           </fieldset>
         </div>
       </div>
+      <nav v-if="total > 20" class="promotion-search" aria-label="검색 결과 페이지">
+        <button
+          class="button button-secondary"
+          :disabled="busy || page === 0"
+          @click="search(page - 1)"
+        >
+          이전
+        </button>
+        <button
+          class="button button-secondary"
+          :disabled="busy || !hasNext"
+          @click="search(page + 1)"
+        >
+          다음
+        </button>
+      </nav>
     </section>
     <section class="ui-surface ui-stack" aria-labelledby="rider-confirm-heading">
       <h2 id="rider-confirm-heading">2. 확인 후 변경</h2>
@@ -189,7 +217,7 @@ function confirmPreview() {
         <dl class="ui-details">
           <div>
             <dt>선택한 사용자</dt>
-            <dd>{{ selected.name }} · {{ selected.id }}</dd>
+            <dd>{{ selected.name }} · {{ selected.userId }}</dd>
           </div>
           <div>
             <dt>현재 역할</dt>
@@ -200,12 +228,8 @@ function confirmPreview() {
             <dd>라이더</dd>
           </div>
           <div>
-            <dt>진행 중인 구독</dt>
-            <dd>{{ progressLabel(selected.hasActiveSubscription) }}</dd>
-          </div>
-          <div>
-            <dt>처리 중인 주문</dt>
-            <dd>{{ progressLabel(selected.hasPendingOrders) }}</dd>
+            <dt>구독·주문 정리</dt>
+            <dd>관리자가 별도로 확인해야 합니다.</dd>
           </div>
         </dl>
         <p v-if="blocked" class="ui-note" role="status">{{ blocked }}</p>
@@ -218,33 +242,34 @@ function confirmPreview() {
             ><input
               v-model="identityConfirmed"
               type="checkbox"
-              :disabled="state === 'complete'"
+              :disabled="busy || state === 'complete'"
             /><span
-              >요청한 본인과 선택한 계정이 일치하며, 라이더 전환 내용을 안내했습니다.</span
+              >요청한 본인과 선택한 계정이 일치합니다. 구독·주문 정리를 별도로 확인했고, 라이더
+              전환과 재로그인을 안내했습니다.</span
             ></label
           >
         </template>
       </template>
-      <button class="button button-primary" :disabled="!canPreview" @click="dialogOpen = true">
-        라이더 변경 미리보기
+      <button class="button button-primary" :disabled="!canPromote" @click="dialogOpen = true">
+        {{ state === 'submitting' ? '변경 중…' : '라이더로 변경' }}
       </button>
       <div v-if="state === 'complete'" class="ui-note" role="status">
-        <strong>{{ completedName }}님의 변경 흐름을 확인했습니다.</strong>
+        <strong>{{ completedName }}님을 라이더로 변경했습니다.</strong>
         <p>
-          실제 역할은 변경되지 않았습니다. 서버 연결 후 승격이 완료되면 재로그인 → 근무 일정·권역
-          설정 → 배송 배정 순서로 안내합니다.
+          기존 로그인 세션이 종료되었습니다. 같은 소셜 계정으로 다시 로그인하도록 안내해 주세요.
+          배송 업무를 시작하려면 업무 설정과 배송 배정이 필요합니다.
         </p>
-        <button class="button button-secondary" @click="search">다시 확인하기</button>
+        <button class="button button-secondary" @click="search(0)">다시 확인하기</button>
       </div>
     </section>
   </div>
   <ConfirmDialog
     v-model:open="dialogOpen"
-    title="라이더 변경을 미리 볼까요?"
-    :description="`${selected?.name || ''} · ${selected?.id || ''} 계정의 CUSTOMER → RIDER 전환 흐름입니다. 실제 권한은 변경되지 않습니다.`"
-    confirm-label="미리보기 확인"
-    :confirm-disabled="!canPreview"
-    @confirm="confirmPreview"
+    title="라이더로 변경할까요?"
+    :description="`${selected?.name || ''} · ${selected?.userId || ''} 계정을 라이더로 변경합니다.`"
+    confirm-label="라이더로 변경"
+    :confirm-disabled="!canPromote"
+    @confirm="confirmPromotion"
   >
     <p>실제 승격 후에는 기존 로그인 세션을 종료하고 같은 소셜 계정으로 다시 로그인해야 합니다.</p>
   </ConfirmDialog>
