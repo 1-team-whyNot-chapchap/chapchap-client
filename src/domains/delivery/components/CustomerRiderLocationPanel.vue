@@ -4,6 +4,7 @@ import RiderLocationMap from './RiderLocationMap.vue'
 import { useRiderLocationStream } from '../useRiderLocationStream.js'
 
 const props = defineProps({ deliveryId: { type: String, required: true }, delivering: Boolean })
+const emit = defineEmits(['stream-ended'])
 const stream = useRiderLocationStream()
 const labels = {
   LIVE: '기사 위치를 실시간으로 받는 중',
@@ -17,6 +18,12 @@ function sync() {
   else stream.stop()
 }
 watch(() => [props.deliveryId, props.delivering], sync, { immediate: true })
+watch(
+  () => [stream.state.status, stream.state.error],
+  ([status, error]) => {
+    if (status === 'ENDED' || error) emit('stream-ended')
+  },
+)
 onBeforeUnmount(stream.stop)
 </script>
 

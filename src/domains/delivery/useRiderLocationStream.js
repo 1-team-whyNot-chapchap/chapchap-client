@@ -7,7 +7,7 @@ const INACTIVITY_MS = 45_000
 function createParser(onEvent) {
   let buffer = ''
   return (chunk) => {
-    buffer += chunk
+    buffer += chunk.replace(/\r\n/g, '\n')
     let boundary
     while ((boundary = buffer.indexOf('\n\n')) >= 0) {
       const frame = buffer.slice(0, boundary)
@@ -23,7 +23,12 @@ function createParser(onEvent) {
 }
 
 export function useRiderLocationStream() {
-  const state = reactive({ status: 'SSE_RECONNECTING', location: null, lastSseReceivedAt: null, error: '' })
+  const state = reactive({
+    status: 'SSE_RECONNECTING',
+    location: null,
+    lastSseReceivedAt: null,
+    error: '',
+  })
   let controller = null
   let reconnectTimer = null
   let inactivityTimer = null
@@ -48,6 +53,10 @@ export function useRiderLocationStream() {
   }
   function scheduleReconnect(delay) {
     if (stopped) return
+    window.clearTimeout(reconnectTimer)
+    window.clearInterval(inactivityTimer)
+    reconnectTimer = null
+    inactivityTimer = null
     state.status = 'SSE_RECONNECTING'
     reconnectTimer = window.setTimeout(connect, delay)
   }
@@ -59,9 +68,12 @@ export function useRiderLocationStream() {
   function classify(location) {
     const receivedAge = Date.now() - new Date(location.receivedAt).getTime()
     const capturedAge = Date.now() - new Date(location.capturedAt).getTime()
-    state.status = capturedAge > 90_000
-      ? 'LOCATION_UNAVAILABLE'
-      : receivedAge > 20_000 ? 'UPDATE_DELAYED' : 'LIVE'
+    state.status =
+      capturedAge > 90_000
+        ? 'LOCATION_UNAVAILABLE'
+        : receivedAge > 20_000
+          ? 'UPDATE_DELAYED'
+          : 'LIVE'
   }
   async function connect() {
     if (stopped) return
@@ -69,10 +81,14 @@ export function useRiderLocationStream() {
     try {
       let token = authSession.getAccessToken()
       if (!token) token = await authSession.refreshAccessToken()
-      const response = await fetch(`/api/delivery/customer/deliveries/${encodeURIComponent(deliveryId)}/rider-location/stream`, {
-        headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
-        credentials: 'include', signal: controller.signal,
-      })
+      const response = await fetch(
+        `/api/delivery/customer/deliveries/${encodeURIComponent(deliveryId)}/rider-location/stream`,
+        {
+          headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          signal: controller.signal,
+        },
+      )
       if (response.status === 401) {
         try {
           await authSession.refreshAccessToken()
@@ -84,6 +100,7 @@ export function useRiderLocationStream() {
       }
       if ([403, 404, 409].includes(response.status)) {
         state.error = '배송 위치 공유를 계속할 수 없습니다.'
+        if (response.status === 409) state.status = 'ENDED'
         return stop()
       }
       if (!response.ok || !response.body) throw new Error(`SSE ${response.status}`)
@@ -103,7 +120,6 @@ export function useRiderLocationStream() {
       })
       inactivityTimer = window.setInterval(() => {
         if (!state.lastSseReceivedAt || Date.now() - state.lastSseReceivedAt > INACTIVITY_MS) {
-          controller?.abort()
           scheduleReconnect(nextRetryDelay())
         }
       }, 1000)
@@ -125,6 +141,7 @@ export function useRiderLocationStream() {
     state.location = null
     state.lastSseReceivedAt = null
     state.error = ''
+    state.status = 'SSE_RECONNECTING'
     connect()
   }
   return { state: readonly(state), start, stop }
