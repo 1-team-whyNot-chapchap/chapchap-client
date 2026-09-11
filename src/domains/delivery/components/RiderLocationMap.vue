@@ -34,10 +34,12 @@ onMounted(async () => {
   try {
     leaflet = await loadLeaflet()
     map = leaflet.map(host.value, { zoomControl: true }).setView([37.5665, 126.978], 12)
-    leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map)
+    leaflet
+      .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+      })
+      .addTo(map)
     updateMarker(props.location)
   } catch (error) {
     unavailable.value = error.message
@@ -55,7 +57,16 @@ onBeforeUnmount(() => map?.remove())
 </template>
 
 <style scoped>
-.rider-location-map { overflow: hidden; border: 1px solid var(--color-border); border-radius: 12px; }
-.rider-location-map__canvas { height: 280px; background: var(--color-primary-soft); }
-.rider-location-map > .ui-muted { margin: 12px; }
+.rider-location-map {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.rider-location-map__canvas {
+  height: 280px;
+  background: var(--color-primary-soft);
+}
+.rider-location-map > .ui-muted {
+  margin: 12px;
+}
 </style>

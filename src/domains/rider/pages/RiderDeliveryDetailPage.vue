@@ -37,7 +37,9 @@ const handoffLabel = { DIRECT: '직접 전달', DOORSTEP: '비대면 전달', OT
 const delivery = computed(() =>
   assignment.value?.deliveries.find((item) => item.deliveryId === props.deliveryId),
 )
-const hasDelivering = computed(() => assignment.value?.deliveries.some((item) => item.status === 'DELIVERING'))
+const hasDelivering = computed(() =>
+  assignment.value?.deliveries.some((item) => item.status === 'DELIVERING'),
+)
 const finished = computed(() => ['DELIVERED', 'FAILED'].includes(delivery.value?.status))
 const canComplete = computed(
   () =>

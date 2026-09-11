@@ -19,10 +19,18 @@ function normalize(position) {
   const { latitude, longitude, accuracy } = position.coords
   const timestamp = position.timestamp
   if (
-    !Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(accuracy) ||
-    latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 ||
-    accuracy < 0 || accuracy > MAX_ACCURACY_M || !Number.isFinite(timestamp)
-  ) return null
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(accuracy) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180 ||
+    accuracy < 0 ||
+    accuracy > MAX_ACCURACY_M ||
+    !Number.isFinite(timestamp)
+  )
+    return null
   return { latitude, longitude, accuracy, capturedAt: new Date(timestamp).toISOString(), timestamp }
 }
 
@@ -49,7 +57,8 @@ async function sendLatest() {
 
 function start() {
   if (state.active || !navigator.geolocation) {
-    if (!navigator.geolocation) state.permissionError = '이 브라우저에서는 위치 정보를 사용할 수 없습니다.'
+    if (!navigator.geolocation)
+      state.permissionError = '이 브라우저에서는 위치 정보를 사용할 수 없습니다.'
     return
   }
   state.permissionError = ''
@@ -59,9 +68,10 @@ function start() {
       if (valid) state.latestValidPosition = valid
     },
     (error) => {
-      state.permissionError = error.code === error.PERMISSION_DENIED
-        ? '배송 중 위치 공유 권한이 필요합니다.'
-        : '현재 위치를 확인하지 못했습니다. 위치 권한과 신호를 확인해 주세요.'
+      state.permissionError =
+        error.code === error.PERMISSION_DENIED
+          ? '배송 중 위치 공유 권한이 필요합니다.'
+          : '현재 위치를 확인하지 못했습니다. 위치 권한과 신호를 확인해 주세요.'
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
   )
