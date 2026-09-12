@@ -55,9 +55,17 @@ function retry() {
           이용 기간 {{ subscription.periodStartDate }} ~ {{ subscription.periodEndDate }}
         </p>
         <p>{{ subscription.plan?.description }}</p>
-        <RouterLink class="button button-secondary" to="/subscription/rounds"
-          >주문 일정 보기</RouterLink
-        >
+        <div class="ui-actions">
+          <RouterLink class="button button-secondary" to="/subscription/rounds"
+            >주문 일정 보기</RouterLink
+          >
+          <RouterLink
+            v-if="subscription.subscriptionStatus === 'IN_PROGRESS'"
+            class="button button-primary"
+            to="/subscription/settings"
+            >구독 설정 변경</RouterLink
+          >
+        </div>
       </article>
       <section v-if="subscription.deliveryConditions.length" class="ui-surface">
         <h2>요일별 배송 조건</h2>
@@ -80,7 +88,7 @@ function retry() {
         <p>
           {{
             changeNotice
-              ? '설정 변경은 적용일과 결제 영향 확인이 필요합니다. 상담에서 변경 가능 여부를 확인해 주세요.'
+              ? '설정 변경은 적용일과 결제 영향 확인이 필요합니다. 변경 조건을 선택한 뒤 서버 계산 결과를 확인해 주세요.'
               : '구독 변경이나 이용 관련 도움이 필요하면 상담을 이용해 주세요.'
           }}
         </p>

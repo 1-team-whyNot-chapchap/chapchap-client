@@ -54,7 +54,6 @@ const FaqDesignPage = () => import('../domains/customer/pages/FaqDesignPage.vue'
 const CustomerSupportPage = () => import('../domains/customer/pages/CustomerSupportPage.vue')
 const ConsultationDesignPage = () => import('../domains/customer/pages/ConsultationDesignPage.vue')
 const DeliveryDetailPage = () => import('../domains/delivery/pages/DeliveryDetailPage.vue')
-const DeliveryEditPage = () => import('../domains/delivery/pages/DeliveryEditPage.vue')
 const DeliveryHistoryPage = () => import('../domains/delivery/pages/DeliveryHistoryPage.vue')
 const HomePage = () => import('../domains/customer/pages/HomePage.vue')
 const MenuDetailPage = () => import('../domains/product/pages/MenuDetailPage.vue')
@@ -66,7 +65,6 @@ const PaymentHistoryPage = () => import('../domains/customer/pages/PaymentHistor
 const PaymentMethodListPage = () => import('../domains/customer/pages/PaymentMethodListPage.vue')
 const PaymentMethodRegistrationPage = () =>
   import('../domains/customer/pages/PaymentMethodRegistrationPage.vue')
-const PlanChangePage = () => import('../domains/subscription/pages/PlanChangePage.vue')
 const PlanMenuListPage = () => import('../domains/product/pages/PlanMenuListPage.vue')
 const PlanPage = () => import('../domains/product/pages/PlanPage.vue')
 const RefundChatPage = () => import('../domains/customer/pages/RefundChatPage.vue')
@@ -174,11 +172,6 @@ const router = createRouter({
       component: SubscriptionRoundDetailPage,
     },
     {
-      path: '/subscription/change-plan',
-      name: 'wf-054',
-      component: PlanChangePage,
-    },
-    {
       path: '/subscription/cancel',
       name: 'subscription-cancel',
       component: SubscriptionCancelPage,
@@ -192,11 +185,6 @@ const router = createRouter({
       path: '/subscription/settings/confirm',
       name: 'wf-025',
       component: SubscriptionSettingsConfirmPage,
-    },
-    {
-      path: '/subscription/delivery/conditions',
-      name: 'delivery-conditions-edit',
-      component: DeliveryEditPage,
     },
     { path: '/mypage', name: 'mypage', component: MyPage },
     { path: '/mypage/notifications', name: 'notifications', component: NotificationPage },

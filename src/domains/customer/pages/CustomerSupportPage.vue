@@ -30,7 +30,7 @@ onMounted(loadFaqs)
 
     <section class="page-intro">
       <h1>무엇을 도와드릴까요?</h1>
-      <p>자주 묻는 질문을 확인하거나 환불 상담 채팅으로 문의할 수 있어요.</p>
+      <p>자주 묻는 질문을 확인하거나 상담 채팅으로 문의할 수 있어요.</p>
     </section>
 
     <section class="support-grid">

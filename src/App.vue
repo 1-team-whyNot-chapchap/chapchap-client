@@ -1,7 +1,10 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
+import { useCurrentSubscriptionStore } from './domains/subscription/stores/useCurrentSubscriptionStore.js'
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
+import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
+import { useSettingChangeStore } from './domains/subscription/stores/useSettingChangeStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
 import { CircleUserRound, Home, LayoutDashboard, Package, Salad } from 'lucide-vue-next'
@@ -13,7 +16,10 @@ import { useAppStore } from './stores/useAppStore'
 
 const appStore = useAppStore()
 const addressStore = useAddressStore()
+const currentSubscriptionStore = useCurrentSubscriptionStore()
 const firstSubscriptionStore = useFirstSubscriptionStore()
+const orderStore = useOrderStore()
+const settingChangeStore = useSettingChangeStore()
 watch(
   () => authSession.state.user,
   (user, previous) => {
@@ -26,7 +32,11 @@ watch(
     )
       return
     addressStore.invalidate()
+    currentSubscriptionStore.$reset()
     firstSubscriptionStore.$reset()
+    orderStore.clearSelectedOrder()
+    orderStore.$reset()
+    settingChangeStore.$reset()
     appStore.$reset()
   },
   { flush: 'sync' },
@@ -82,16 +92,7 @@ const activeNavigation = computed(() => {
   if (
     routeName === 'subscription' ||
     routeName === 'subscription-cancel' ||
-    [
-      'subscription-list',
-      'wf-021',
-      'wf-022',
-      'wf-023',
-      'wf-024',
-      'wf-025',
-      'delivery-conditions-edit',
-      'wf-054',
-    ].includes(routeName)
+    ['subscription-list', 'wf-021', 'wf-022', 'wf-023', 'wf-024', 'wf-025'].includes(routeName)
   ) {
     return 'subscription'
   }
