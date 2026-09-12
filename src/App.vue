@@ -3,14 +3,7 @@ import { computed, watch } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  CalendarDays,
-  CircleUserRound,
-  Home,
-  LayoutDashboard,
-  Package,
-  Salad,
-} from 'lucide-vue-next'
+import { CircleUserRound, Home, LayoutDashboard, Package, Salad } from 'lucide-vue-next'
 import CustomerHeader from './common/layouts/CustomerHeader.vue'
 import CustomerFooter from './common/layouts/CustomerFooter.vue'
 import CustomerQuickNavigation from './common/components/navigation/CustomerQuickNavigation.vue'
@@ -38,13 +31,19 @@ watch(
 const route = useRoute()
 const router = useRouter()
 
-const navigationItems = [
+const navigationItems = computed(() => [
   { id: 'home', label: '홈', icon: Home },
-  { id: 'menu', label: '메뉴', icon: Salad },
-  { id: 'plans', label: '플랜', icon: Package },
-  { id: 'subscription', label: '내 구독', icon: CalendarDays },
-  { id: 'mypage', label: '마이', icon: CircleUserRound },
-]
+  ...(authSession.state.user
+    ? [
+        { id: 'menu', label: '메뉴', icon: Salad },
+        { id: 'plans', label: '플랜', icon: Package },
+        { id: 'mypage', label: '마이', icon: CircleUserRound },
+      ]
+    : [
+        { id: 'plans', label: '플랜', icon: Package },
+        { id: 'menu', label: '메뉴', icon: Salad },
+      ]),
+])
 
 // computed는 반응형 값을 조합해 새 값을 만드는 Vue 문법입니다.
 // 현재 선택된 화면이 관리자 화면인지 계산합니다.
