@@ -272,6 +272,8 @@ watch(
 
 <style scoped>
 .chat-workspace {
+  color: var(--color-text);
+  --color-text-muted: #55594f;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   height: min(780px, calc(100dvh - 220px));
@@ -458,6 +460,8 @@ watch(
   text-align: right;
 }
 .chat-bubble {
+  color: #292d25;
+  font-weight: 500;
   padding: 12px 16px;
   margin: 0;
   background: var(--color-surface-subtle);
