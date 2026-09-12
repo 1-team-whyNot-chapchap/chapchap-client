@@ -50,6 +50,11 @@ async function sendLatest() {
   } catch (error) {
     // The server is authoritative when an admin finished the rider's last delivery.
     if (error.response?.data?.code === 'DELIVERY_048' || error.response?.status === 409) stop()
+    else
+      state.permissionError =
+        error.response?.status === 404
+          ? '위치 공유 서비스를 찾지 못했습니다. 페이지를 새로고침해 주세요.'
+          : '현재 위치를 전송하지 못했습니다. 잠시 후 다시 시도합니다.'
   } finally {
     sending = false
   }
@@ -65,7 +70,14 @@ function start() {
   watchId = navigator.geolocation.watchPosition(
     (position) => {
       const valid = normalize(position)
-      if (valid) state.latestValidPosition = valid
+      if (!valid) {
+        state.permissionError =
+          '현재 위치 정확도가 낮아 위치를 공유하지 못했습니다. 실외에서 다시 시도해 주세요.'
+        return
+      }
+      state.permissionError = ''
+      state.latestValidPosition = valid
+      sendLatest()
     },
     (error) => {
       state.permissionError =

@@ -33,8 +33,8 @@ onBeforeUnmount(stream.stop)
       <h2>기사 현재 위치</h2>
       <span class="mini-badge">{{ labels[stream.state.status] }}</span>
     </div>
-    <RiderLocationMap v-if="stream.state.location" :location="stream.state.location" />
-    <p v-else class="ui-muted">{{ labels[stream.state.status] }}</p>
+    <RiderLocationMap :location="stream.state.location" />
+    <p v-if="!stream.state.location" class="ui-muted">{{ labels[stream.state.status] }}</p>
     <p v-if="stream.state.error" class="ui-error" role="alert">{{ stream.state.error }}</p>
   </section>
 </template>
