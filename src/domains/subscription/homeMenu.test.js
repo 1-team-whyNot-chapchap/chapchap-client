@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getHomeMenuDate, selectHomeMenu } from './homeMenu.js'
+import { getHomeMenuDate, getHomeMenuDisplayDate, selectHomeMenu } from './homeMenu.js'
 
 test('KST 자정 전후의 일자를 구분한다', () => {
   assert.equal(getHomeMenuDate(new Date('2026-09-12T14:59:59Z')).day, 12)
@@ -46,10 +46,23 @@ test('메뉴 또는 오늘 순번 누락 시 다른 날짜 메뉴를 대신 반�
   }
 })
 
-test('공개 메뉴 소개는 일요일·공휴일도 일자대로 선택한다', () => {
-  for (const date of ['2026-09-13T12:00:00+09:00', '2026-10-09T12:00:00+09:00']) {
-    const { day } = getHomeMenuDate(new Date(date))
-    const menu = { menuSequence: day, name: '소개 메뉴' }
-    assert.equal(selectHomeMenu({ menus: [menu] }, day), menu)
+test('메인은 평일에는 오늘, 일요일·공휴일에는 이후 유효 날짜 메뉴를 선택한다', () => {
+  const calendar = {
+    supportedStartDate: '2026-01-01',
+    supportedEndDate: '2027-12-31',
+    holidays: [{ holidayDate: '2026-10-09' }],
   }
+  assert.equal(
+    getHomeMenuDisplayDate(calendar, new Date('2026-09-12T12:00:00+09:00')),
+    '2026-09-12',
+  )
+  assert.equal(
+    getHomeMenuDisplayDate(calendar, new Date('2026-09-13T12:00:00+09:00')),
+    '2026-09-14',
+  )
+  assert.equal(
+    getHomeMenuDisplayDate(calendar, new Date('2026-10-09T12:00:00+09:00')),
+    '2026-10-10',
+  )
+  assert.equal(getHomeMenuDisplayDate(null), null)
 })
