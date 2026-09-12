@@ -52,7 +52,7 @@ async function saveEdit() {
   notice.value = {
     tone: 'success',
     title: '배송지를 수정했어요.',
-    message: '서버에 저장된 목록을 다시 불러왔어요.',
+    message: '변경 내용이 저장되었습니다. 목록을 확인해 주세요.',
   }
 }
 
@@ -63,7 +63,7 @@ async function setDefault(address) {
     notice.value = {
       tone: 'success',
       title: '기본 배송지를 변경했어요.',
-      message: '서버의 최신 배송지 목록을 반영했어요.',
+      message: '변경 내용이 저장되었습니다. 목록을 확인해 주세요.',
     }
   }
 }
@@ -76,7 +76,7 @@ async function remove() {
   notice.value = {
     tone: 'success',
     title: '배송지를 삭제했어요.',
-    message: '서버의 최신 배송지 목록을 반영했어요.',
+    message: '변경 내용이 저장되었습니다. 목록을 확인해 주세요.',
   }
 }
 </script>
@@ -123,7 +123,7 @@ async function remove() {
         <article v-for="address in addresses" :key="address.addressId" class="ui-list-item">
           <span class="ui-icon"><MapPin :size="22" aria-hidden="true" /></span>
           <div>
-            <div class="ui-actions">
+            <div class="ui-actions ui-actions--end">
               <h2>{{ address.name }}</h2>
               <span v-if="address.isDefault" class="mini-badge">기본 배송지</span>
             </div>
@@ -136,7 +136,7 @@ async function remove() {
               배송 요청: {{ address.otherDeliveryRequest }}
             </p>
           </div>
-          <div class="ui-actions">
+          <div class="ui-actions ui-actions--end">
             <button
               v-if="!address.isDefault"
               class="text-button"
@@ -178,77 +178,82 @@ async function remove() {
       :visible="isEditing"
       modal
       :draggable="false"
+      :closable="!addressStore.isMutating"
+      :close-on-escape="!addressStore.isMutating"
       header="배송지 수정"
       :pt="dialogPt"
       @update:visible="closeEdit"
     >
       <form class="ui-stack" @submit.prevent="saveEdit">
-        <div class="ui-grid">
+        <p v-if="mutationMessage" role="alert">{{ mutationMessage }}</p>
+        <fieldset class="ui-stack address-fields" :disabled="addressStore.isMutating">
+          <div class="ui-grid">
+            <label class="ui-field"
+              >배송지 이름<input v-model.trim="form.name" required maxlength="50"
+            /></label>
+            <label class="ui-field"
+              >받는 분<input v-model.trim="form.recipientName" required maxlength="50"
+            /></label>
+          </div>
           <label class="ui-field"
-            >배송지 이름<input v-model.trim="form.name" required maxlength="50"
+            >연락처<input v-model.trim="form.recipientPhone" type="tel" required maxlength="20"
           /></label>
           <label class="ui-field"
-            >받는 분<input v-model.trim="form.recipientName" required maxlength="50"
+            >우편번호<input v-model.trim="form.postalCode" required maxlength="10"
           /></label>
-        </div>
-        <label class="ui-field"
-          >연락처<input v-model.trim="form.recipientPhone" type="tel" required maxlength="20"
-        /></label>
-        <label class="ui-field"
-          >우편번호<input v-model.trim="form.postalCode" required maxlength="10"
-        /></label>
-        <label class="ui-field"
-          >도로명 주소<textarea
-            v-model.trim="form.addressLine1"
-            required
-            maxlength="255"
-            rows="3"
-          />
-        </label>
-        <label class="ui-field"
-          >상세 주소 (선택)<input v-model.trim="form.addressLine2" maxlength="255"
-        /></label>
-        <label class="ui-field"
-          >수령 방식<select v-model="form.deliveryMethod">
-            <option value="DOORSTEP">문 앞 비대면 배송</option>
-            <option value="DIRECT">직접 전달</option>
-            <option value="OTHER">기타 요청</option>
-          </select></label
-        >
-        <label v-if="form.deliveryMethod === 'OTHER'" class="ui-field"
-          >기타 배송 요청<textarea
-            v-model.trim="form.otherDeliveryRequest"
-            required
-            maxlength="255"
-            rows="2"
-          />
-        </label>
-        <label class="ui-field"
-          >공동현관 비밀번호 변경 (선택)<input
-            v-model.trim="form.entrancePassword"
-            :disabled="form.clearEntrancePassword"
-            maxlength="100"
-            type="password"
-            autocomplete="new-password"
-          />
-        </label>
-        <label class="ui-check"
-          ><input v-model="form.clearEntrancePassword" type="checkbox" />기존 공동현관 비밀번호
-          삭제</label
-        >
-        <div class="ui-actions">
-          <button
-            class="button button-secondary"
-            type="button"
-            :disabled="addressStore.isMutating"
-            @click="closeEdit"
+          <label class="ui-field"
+            >도로명 주소<textarea
+              v-model.trim="form.addressLine1"
+              required
+              maxlength="255"
+              rows="3"
+            />
+          </label>
+          <label class="ui-field"
+            >상세 주소 (선택)<input v-model.trim="form.addressLine2" maxlength="255"
+          /></label>
+          <label class="ui-field"
+            >수령 방식<select v-model="form.deliveryMethod">
+              <option value="DOORSTEP">문 앞 비대면 배송</option>
+              <option value="DIRECT">직접 전달</option>
+              <option value="OTHER">기타 요청</option>
+            </select></label
           >
-            취소
-          </button>
-          <button class="button button-primary" type="submit" :disabled="addressStore.isMutating">
-            {{ addressStore.isMutating ? '저장 중...' : '저장' }}
-          </button>
-        </div>
+          <label v-if="form.deliveryMethod === 'OTHER'" class="ui-field"
+            >기타 배송 요청<textarea
+              v-model.trim="form.otherDeliveryRequest"
+              required
+              maxlength="255"
+              rows="2"
+            />
+          </label>
+          <label class="ui-field"
+            >공동현관 비밀번호 변경 (선택)<input
+              v-model.trim="form.entrancePassword"
+              :disabled="form.clearEntrancePassword"
+              maxlength="100"
+              type="password"
+              autocomplete="new-password"
+            />
+          </label>
+          <label class="ui-check"
+            ><input v-model="form.clearEntrancePassword" type="checkbox" />기존 공동현관 비밀번호
+            삭제</label
+          >
+          <div class="ui-actions ui-actions--end">
+            <button
+              class="button button-secondary"
+              type="button"
+              :disabled="addressStore.isMutating"
+              @click="closeEdit"
+            >
+              취소
+            </button>
+            <button class="button button-primary" type="submit" :disabled="addressStore.isMutating">
+              {{ addressStore.isMutating ? '저장 중...' : '저장' }}
+            </button>
+          </div>
+        </fieldset>
       </form>
     </Dialog>
 
@@ -256,10 +261,13 @@ async function remove() {
       :visible="Boolean(removing)"
       modal
       :draggable="false"
+      :closable="!addressStore.isMutating"
+      :close-on-escape="!addressStore.isMutating"
       header="배송지를 삭제할까요?"
       :pt="dialogPt"
       @update:visible="removing = null"
     >
+      <p v-if="mutationMessage" role="alert">{{ mutationMessage }}</p>
       <p>{{ removing?.name }} · {{ formatAddress(removing || {}) }}</p>
       <p class="ui-muted">현재 구독이나 배송 예정 주문에서 사용 중인 배송지는 삭제할 수 없어요.</p>
       <template #footer>
@@ -283,3 +291,12 @@ async function remove() {
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+.address-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+</style>

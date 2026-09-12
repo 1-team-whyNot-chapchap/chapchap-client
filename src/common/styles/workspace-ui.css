@@ -443,3 +443,19 @@
     transition: none !important;
   }
 }
+
+.ui-actions--end {
+  justify-content: flex-end;
+}
+@media (max-width: 640px) {
+  .ui-heading > .button {
+    align-self: flex-end;
+  }
+}
+
+.ui-action-end {
+  justify-self: end;
+  align-self: end;
+  margin-left: auto;
+  width: fit-content;
+}

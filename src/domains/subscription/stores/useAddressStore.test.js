@@ -51,3 +51,47 @@ test('진행 중인 쓰기 요청은 자동으로 다시 실행하지 않는다'
   assert.equal(await first, true)
   assert.equal(calls, 1)
 })
+
+test('a late address read cannot restore the previous account after invalidation', async () => {
+  let resolveList
+  setActivePinia(createPinia())
+  const store = createAddressStore(
+    {
+      listAddresses: () =>
+        new Promise((resolve) => {
+          resolveList = resolve
+        }),
+    },
+    'account-switch-test',
+  )()
+  const pending = store.fetchAddresses()
+  store.invalidate()
+  resolveList([{ addressId: ADDRESS_ID, name: 'previous' }])
+  await pending
+  assert.deepEqual(store.addresses, [])
+  assert.equal(store.listStatus, 'idle')
+})
+test('a late mutation does not load or update the next account', async () => {
+  let resolveSave
+  let readCount = 0
+  setActivePinia(createPinia())
+  const store = createAddressStore(
+    {
+      createAddress: () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        }),
+      listAddresses: async () => {
+        readCount++
+        return []
+      },
+    },
+    'mutation-account-test',
+  )()
+  const pending = store.createAddress({})
+  store.invalidate()
+  resolveSave({ addressId: ADDRESS_ID })
+  assert.equal(await pending, false)
+  assert.equal(readCount, 0)
+  assert.equal(store.mutationStatus, 'idle')
+})

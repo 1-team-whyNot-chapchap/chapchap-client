@@ -43,92 +43,94 @@ async function saveAddress() {
     />
 
     <form class="profile-form" @submit.prevent="saveAddress">
-      <div class="form-grid">
+      <fieldset class="address-fields" :disabled="addressStore.isMutating">
+        <div class="form-grid">
+          <label class="form-field">
+            <span>배송지 이름</span>
+            <input
+              v-model.trim="form.name"
+              type="text"
+              placeholder="예: 우리 집"
+              required
+              maxlength="50"
+            />
+          </label>
+          <label class="form-field">
+            <span>받는 분</span>
+            <input
+              v-model.trim="form.recipientName"
+              type="text"
+              autocomplete="name"
+              required
+              maxlength="50"
+            />
+          </label>
+        </div>
+
         <label class="form-field">
-          <span>배송지 이름</span>
+          <span>휴대폰 번호</span>
           <input
-            v-model.trim="form.name"
-            type="text"
-            placeholder="예: 우리 집"
+            v-model.trim="form.recipientPhone"
+            type="tel"
+            autocomplete="tel"
             required
-            maxlength="50"
+            maxlength="20"
           />
         </label>
         <label class="form-field">
-          <span>받는 분</span>
+          <span>우편번호</span>
           <input
-            v-model.trim="form.recipientName"
-            type="text"
-            autocomplete="name"
+            v-model.trim="form.postalCode"
+            autocomplete="postal-code"
+            inputmode="numeric"
             required
-            maxlength="50"
+            maxlength="10"
           />
         </label>
-      </div>
+        <label class="form-field">
+          <span>도로명 주소</span>
+          <textarea
+            v-model.trim="form.addressLine1"
+            rows="3"
+            autocomplete="street-address"
+            required
+            maxlength="255"
+          />
+        </label>
+        <label class="form-field">
+          <span>상세 주소 (선택)</span>
+          <input v-model.trim="form.addressLine2" autocomplete="address-line2" maxlength="255" />
+        </label>
+        <label class="form-field">
+          <span>수령 방식</span>
+          <select v-model="form.deliveryMethod">
+            <option value="DOORSTEP">문 앞 비대면 배송</option>
+            <option value="DIRECT">직접 전달</option>
+            <option value="OTHER">기타 요청</option>
+          </select>
+        </label>
+        <label v-if="form.deliveryMethod === 'OTHER'" class="form-field">
+          <span>기타 배송 요청</span>
+          <textarea v-model.trim="form.otherDeliveryRequest" rows="2" required maxlength="255" />
+        </label>
+        <label class="form-field">
+          <span>공동현관 비밀번호 (선택)</span>
+          <input
+            v-model.trim="form.entrancePassword"
+            type="password"
+            autocomplete="new-password"
+            maxlength="100"
+          />
+        </label>
 
-      <label class="form-field">
-        <span>휴대폰 번호</span>
-        <input
-          v-model.trim="form.recipientPhone"
-          type="tel"
-          autocomplete="tel"
-          required
-          maxlength="20"
-        />
-      </label>
-      <label class="form-field">
-        <span>우편번호</span>
-        <input
-          v-model.trim="form.postalCode"
-          autocomplete="postal-code"
-          inputmode="numeric"
-          required
-          maxlength="10"
-        />
-      </label>
-      <label class="form-field">
-        <span>도로명 주소</span>
-        <textarea
-          v-model.trim="form.addressLine1"
-          rows="3"
-          autocomplete="street-address"
-          required
-          maxlength="255"
-        />
-      </label>
-      <label class="form-field">
-        <span>상세 주소 (선택)</span>
-        <input v-model.trim="form.addressLine2" autocomplete="address-line2" maxlength="255" />
-      </label>
-      <label class="form-field">
-        <span>수령 방식</span>
-        <select v-model="form.deliveryMethod">
-          <option value="DOORSTEP">문 앞 비대면 배송</option>
-          <option value="DIRECT">직접 전달</option>
-          <option value="OTHER">기타 요청</option>
-        </select>
-      </label>
-      <label v-if="form.deliveryMethod === 'OTHER'" class="form-field">
-        <span>기타 배송 요청</span>
-        <textarea v-model.trim="form.otherDeliveryRequest" rows="2" required maxlength="255" />
-      </label>
-      <label class="form-field">
-        <span>공동현관 비밀번호 (선택)</span>
-        <input
-          v-model.trim="form.entrancePassword"
-          type="password"
-          autocomplete="new-password"
-          maxlength="100"
-        />
-      </label>
-
-      <p class="form-help">
-        배송 가능 지역은 저장할 때 서버에서 확인합니다. 첫 배송지는 서버에서 기본 배송지로
-        지정됩니다.
-      </p>
-      <button class="button button-primary" type="submit" :disabled="addressStore.isMutating">
-        {{ addressStore.isMutating ? '저장 중...' : '배송지 저장' }}
-      </button>
+        <p class="form-help">
+          배송 가능 지역은 저장할 때 서버에서 확인합니다. 첫 배송지는 서버에서 기본 배송지로
+          지정됩니다.
+        </p>
+        <button class="button button-primary" type="submit" :disabled="addressStore.isMutating">
+          {{ addressStore.isMutating ? '저장 중...' : '배송지 저장' }}
+        </button>
+      </fieldset>
     </form>
 
     <p class="security-note">
@@ -152,7 +154,15 @@ async function saveAddress() {
   background: var(--color-surface);
 }
 
-.profile-form > .button {
+.address-fields {
+  display: grid;
+  gap: 20px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.address-fields > .button {
   justify-self: end;
   min-width: 160px;
 }
@@ -221,7 +231,15 @@ async function saveAddress() {
     padding: 20px;
   }
 
-  .profile-form > .button {
+  .address-fields {
+    display: grid;
+    gap: 20px;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  .address-fields > .button {
     width: 100%;
   }
 }

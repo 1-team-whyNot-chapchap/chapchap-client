@@ -115,3 +115,29 @@ test('주소 사용 중 충돌의 HTTP 상태와 오류 코드를 보존한다',
     return true
   })
 })
+
+test('all address mutations disable authentication replay', async () => {
+  const options = []
+  const api = createAddressApi({
+    post: async (url, body, config) => {
+      options.push(config)
+      return success({ addressId: ADDRESS_ID })
+    },
+    patch: async (url, body, config) => {
+      options.push(config)
+      return success({ addressId: ADDRESS_ID })
+    },
+    delete: async (url, config) => {
+      options.push(config)
+      return success({ addressId: ADDRESS_ID })
+    },
+  })
+  await api.createAddress(address)
+  await api.updateAddress(ADDRESS_ID, address)
+  await api.setDefaultAddress(ADDRESS_ID)
+  await api.deleteAddress(ADDRESS_ID)
+  assert.deepEqual(
+    options,
+    Array.from({ length: 4 }, () => ({ skipAuthRetry: true })),
+  )
+})

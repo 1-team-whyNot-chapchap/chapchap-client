@@ -1,4 +1,5 @@
 <script setup>
+import { displayDateTime } from '../../../common/utils/displayDate.js'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { customerApi as api } from '../api/customerApi.js'
@@ -248,7 +249,7 @@ onMounted(() => {
 </script>
 <template>
   <section class="ui-stack">
-    <div class="ui-actions">
+    <div class="ui-actions ui-actions--end">
       <button class="button button-secondary" :disabled="busy" @click="reload">새로고침</button
       ><RouterLink v-if="detail" class="button button-secondary" to="/admin/consultations"
         >상담 목록</RouterLink
@@ -271,7 +272,7 @@ onMounted(() => {
         <h2>{{ admin ? '연결 대기 상담' : '내 상담' }}</h2>
         <article v-for="row in rows" :key="row.consultationId" class="ui-stack">
           <h3>상담 #{{ row.consultationId }}</h3>
-          <p>{{ states[row.status] }} · {{ row.createdAt }}</p>
+          <p>{{ states[row.status] }} · {{ displayDateTime(row.createdAt) }}</p>
           <button
             class="button button-secondary"
             :disabled="busy"
@@ -343,7 +344,9 @@ onMounted(() => {
                 ] || '상담'
               }}</strong>
               <p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ message.content }}</p>
-              <time>{{ message.createdAt }}</time>
+              <time :datetime="message.createdAt" :title="message.createdAt">{{
+                displayDateTime(message.createdAt)
+              }}</time>
             </div>
           </li>
         </ol>

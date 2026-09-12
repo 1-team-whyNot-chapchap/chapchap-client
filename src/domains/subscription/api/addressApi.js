@@ -48,7 +48,7 @@ export function createAddressApi(client) {
 
     async createAddress(request) {
       try {
-        const response = await client.post(ROOT, request)
+        const response = await client.post(ROOT, request, { skipAuthRetry: true })
         return requireAddressResult(
           unwrapSubscriptionResponse(response, '배송지 등록 응답을 확인할 수 없습니다.'),
           response.status ?? null,
@@ -62,7 +62,7 @@ export function createAddressApi(client) {
     async updateAddress(value, request) {
       try {
         const id = addressId(value)
-        const response = await client.patch(`${ROOT}/${id}`, request)
+        const response = await client.patch(`${ROOT}/${id}`, request, { skipAuthRetry: true })
         return requireAddressResult(
           unwrapSubscriptionResponse(response, '배송지 수정 응답을 확인할 수 없습니다.'),
           response.status ?? null,
@@ -76,7 +76,9 @@ export function createAddressApi(client) {
     async setDefaultAddress(value) {
       try {
         const id = addressId(value)
-        const response = await client.patch(`${ROOT}/${id}/default`)
+        const response = await client.patch(`${ROOT}/${id}/default`, undefined, {
+          skipAuthRetry: true,
+        })
         return requireAddressResult(
           unwrapSubscriptionResponse(response, '기본 배송지 변경 응답을 확인할 수 없습니다.'),
           response.status ?? null,
@@ -90,7 +92,7 @@ export function createAddressApi(client) {
     async deleteAddress(value) {
       try {
         const id = addressId(value)
-        const response = await client.delete(`${ROOT}/${id}`)
+        const response = await client.delete(`${ROOT}/${id}`, { skipAuthRetry: true })
         return requireAddressResult(
           unwrapSubscriptionResponse(response, '배송지 삭제 응답을 확인할 수 없습니다.'),
           response.status ?? null,

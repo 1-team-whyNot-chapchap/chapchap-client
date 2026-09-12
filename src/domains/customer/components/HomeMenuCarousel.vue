@@ -194,6 +194,9 @@ onMounted(() => loadMenus())
   color: var(--color-text-muted);
 }
 
+.home-menu__content > .button {
+  margin-left: auto;
+}
 .home-menu__content {
   flex: 1;
   min-width: 0;
@@ -235,6 +238,7 @@ onMounted(() => loadMenus())
 }
 
 .home-menu__more {
+  margin-left: auto;
   display: flex;
   width: fit-content;
   margin: var(--space-5) 0 0 auto;
@@ -251,6 +255,7 @@ onMounted(() => loadMenus())
   }
 
   .home-menu__more {
+    margin-left: auto;
     width: 100%;
   }
 }

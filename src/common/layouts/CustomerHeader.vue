@@ -62,6 +62,7 @@ const emit = defineEmits(['navigate'])
     <div class="header-actions">
       <button
         class="header-admin-button"
+        v-if="['ADMIN', 'SUPER_ADMIN'].includes(authSession.state.user?.role)"
         type="button"
         aria-label="관리자 페이지로"
         @click="emit('navigate', 'admin')"
@@ -71,6 +72,7 @@ const emit = defineEmits(['navigate'])
       </button>
       <button
         class="header-rider-button"
+        v-if="authSession.state.user?.role === 'RIDER'"
         type="button"
         aria-label="라이더 화면으로"
         @click="emit('navigate', 'rider-deliveries')"
