@@ -134,6 +134,22 @@ export function createAuthSession(http, authHttp) {
       initialPasswordRequired = false
       return ensureSession()
     },
+    async loginLocalTestCustomer() {
+      if (refreshPromise) await refreshPromise.catch(() => {})
+      clear()
+      initialPasswordRequired = false
+      const version = generation
+      const data = payload(await authHttp.post('/api/auth/local-test-login/customer'))
+      if (version !== generation || typeof data.accessToken !== 'string' || !data.accessToken)
+        throw new Error('테스트 로그인 결과를 확인할 수 없습니다.')
+      accessToken = data.accessToken
+      try {
+        return await loadUser()
+      } catch (error) {
+        clear()
+        throw error
+      }
+    },
     async loginAdmin(username, password) {
       if (refreshPromise) await refreshPromise.catch(() => {})
       clear()
@@ -162,6 +178,12 @@ export function createAuthSession(http, authHttp) {
       clear()
     },
     clear,
+    getAccessToken() {
+      return accessToken
+    },
+    refreshAccessToken() {
+      return refresh()
+    },
     async logout() {
       // 쿠키 회전이 끝난 뒤 종료하여 늦게 온 refresh 응답이 쿠키를 되살리지 않게 한다.
       if (refreshPromise) await refreshPromise.catch(() => {})
