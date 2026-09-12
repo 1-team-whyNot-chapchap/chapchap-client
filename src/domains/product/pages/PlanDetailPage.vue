@@ -223,7 +223,7 @@ function hasImage(menu) {
 }
 .catalog-search input:focus-visible {
   outline: 3px solid var(--color-primary-hover);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 .catalog-menu-grid {
   display: grid;

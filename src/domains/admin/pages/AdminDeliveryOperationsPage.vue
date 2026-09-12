@@ -4,7 +4,7 @@ import SelectButton from 'primevue/selectbutton'
 import DatePicker from 'primevue/datepicker'
 import dayjs from 'dayjs'
 import AdminFrame from '../components/AdminFrame.vue'
-import { selectButtonPt, datePickerPt } from '../../../common/constants/primeUiPt'
+import { selectButtonPt, popupDatePickerPt } from '../../../common/constants/primeUiPt'
 import http from '../../../common/api/http.js'
 import { createAdminDeliveryOperationsApi } from '../api/adminDeliveryOperationsApi.js'
 const api = createAdminDeliveryOperationsApi(http)
@@ -60,7 +60,7 @@ onMounted(load)
           input-id="ops-date"
           date-format="yy.mm.dd"
           :manual-input="false"
-          :pt="datePickerPt"
+          :pt="popupDatePickerPt"
           placeholder="전체 날짜" /></label
       ><button class="button button-secondary" @click="reset">조건 초기화</button>
     </div>

@@ -58,7 +58,7 @@ const emit = defineEmits(['back'])
 }
 .page-back:focus-visible {
   outline: 3px solid var(--color-primary-pressed);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 :global(.page-back + .ui-heading),
 :global(.page-back + .page-intro),

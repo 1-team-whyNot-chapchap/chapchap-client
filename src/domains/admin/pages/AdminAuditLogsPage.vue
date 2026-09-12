@@ -12,7 +12,7 @@ import { auditRows } from '../adminSupportPreview'
 import http from '../../../common/api/http.js'
 import { createAdminAuditAndIntegrationEventsApi } from '../api/adminAuditAndIntegrationEventsApi.js'
 import {
-  datePickerPt,
+  popupDatePickerPt,
   dialogPt,
   selectButtonPt,
   tableColumnPt,
@@ -112,7 +112,7 @@ function applyFilters() {
           selection-mode="range"
           date-format="yy.mm.dd"
           :manual-input="false"
-          :pt="datePickerPt" /></label
+          :pt="popupDatePickerPt" /></label
       ><button class="button button-secondary" @click="applyFilters">조회</button
       ><button class="button button-secondary" @click="reset">조건 초기화</button>
     </div>

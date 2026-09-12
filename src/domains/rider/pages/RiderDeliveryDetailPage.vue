@@ -322,7 +322,7 @@ onMounted(load)
 }
 .completion-photo-input:focus-visible {
   outline: 2px solid var(--color-primary-hover);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 @media (hover: hover) {
   .completion-photo-input::file-selector-button:hover {
