@@ -13,6 +13,7 @@ import {
   MessageCircle,
 } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
+import { authSession } from '../../../common/api/http.js'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 
 const emit = defineEmits(['navigate'])
@@ -59,10 +60,13 @@ const links = [
     <DesignPreview title="마이" empty="아직 구독 내역이 없어요.">
       <p class="my-greeting">나의 챱챱 · 안녕하세요</p>
       <section class="mypage-profile">
-        <h1 class="sr-only">마이페이지</h1>
         <RouterLink class="profile-avatar" to="/mypage/profile" aria-label="프로필 사진 변경">
           <UserRound :size="36" aria-hidden="true" />
         </RouterLink>
+        <h1 class="profile-name">
+          {{ authSession.state.user?.name || '마이페이지'
+          }}<span v-if="authSession.state.user?.name">님</span>
+        </h1>
         <button
           type="button"
           class="icon-button"
@@ -155,6 +159,18 @@ const links = [
   margin: 0;
   line-height: 1.2;
   font-size: var(--font-page-title);
+}
+
+.mypage-profile .profile-name {
+  min-width: 0;
+  font-size: clamp(20px, 3vw, 28px);
+  overflow-wrap: anywhere;
+}
+
+.profile-name span {
+  margin-left: 4px;
+  font-size: 0.75em;
+  font-weight: 500;
 }
 
 .icon-button {
