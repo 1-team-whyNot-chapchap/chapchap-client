@@ -1,7 +1,8 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { UserRound, ChevronLeft, ImagePlus, X } from 'lucide-vue-next'
+import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { UserRound, ImagePlus, X } from 'lucide-vue-next'
 import http, { authSession } from '../../../common/api/http.js'
 import { createAccountApi, validateProfileImage } from '../../auth/accountApi.js'
 const api = createAccountApi(http)
@@ -204,9 +205,7 @@ const providerLabel = (providers) =>
 </script>
 <template>
   <div class="page account-design profile-design">
-    <RouterLink class="text-action back-link" to="/mypage"
-      ><ChevronLeft :size="18" aria-hidden="true" />마이페이지</RouterLink
-    >
+    <PageBackButton to="/mypage" />
     <header class="intro">
       <h1>내 정보</h1>
       <p>계정 정보와 프로필 사진, 이메일 수신 설정을 관리해요.</p>
@@ -530,10 +529,6 @@ const providerLabel = (providers) =>
     text-align: center;
     width: 100%;
   }
-}
-.back-link {
-  display: inline-flex;
-  margin-top: var(--space-4);
 }
 .profile-photo {
   display: flex;
