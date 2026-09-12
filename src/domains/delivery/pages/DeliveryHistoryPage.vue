@@ -102,7 +102,7 @@ onBeforeUnmount(() => requestId++)
       <ContentState :state="state" empty-title="조건에 맞는 배송이 없어요." @retry="loadDeliveries">
         <p v-if="state === 'error' && error" class="ui-error" role="alert">{{ error }}</p>
         <section class="ui-surface" style="margin-top: 16px" aria-label="배송 목록">
-          <article v-for="delivery in deliveries" :key="delivery.id" class="ui-list-item">
+          <article v-for="delivery in deliveries" :key="delivery.deliveryId" class="ui-list-item">
             <span class="ui-icon"><PackageCheck :size="22" aria-hidden="true" /></span>
             <div>
               <h2>
@@ -115,7 +115,7 @@ onBeforeUnmount(() => requestId++)
             <button
               class="button button-secondary"
               :aria-label="`${delivery.deliveryDate} 배송 상세`"
-              @click="openDelivery(delivery.id)"
+              @click="openDelivery(delivery.deliveryId)"
             >
               상세 보기
             </button>
