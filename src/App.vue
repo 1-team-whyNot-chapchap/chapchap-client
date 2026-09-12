@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
+import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
 import { CircleUserRound, Home, LayoutDashboard, Package, Salad } from 'lucide-vue-next'
@@ -14,6 +15,7 @@ import { useAppStore } from './stores/useAppStore'
 const appStore = useAppStore()
 const addressStore = useAddressStore()
 const firstSubscriptionStore = useFirstSubscriptionStore()
+const orderStore = useOrderStore()
 watch(
   () => authSession.state.user,
   (user, previous) => {
@@ -27,6 +29,8 @@ watch(
       return
     addressStore.invalidate()
     firstSubscriptionStore.$reset()
+    orderStore.clearSelectedOrder()
+    orderStore.$reset()
     appStore.$reset()
   },
   { flush: 'sync' },
