@@ -1,9 +1,9 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { UserRound, ChevronLeft } from 'lucide-vue-next'
+import { UserRound, ChevronLeft, ImagePlus, X } from 'lucide-vue-next'
 import http, { authSession } from '../../../common/api/http.js'
-import { createAccountApi } from '../../auth/accountApi.js'
+import { createAccountApi, validateProfileImage } from '../../auth/accountApi.js'
 const api = createAccountApi(http)
 const profile = ref(null),
   loading = ref(false),
@@ -14,6 +14,41 @@ const photo = ref(''),
   photoError = ref(''),
   file = ref(null),
   fileInput = ref(null)
+const preview = ref(''),
+  selectionError = ref('')
+function releasePreview() {
+  if (preview.value) URL.revokeObjectURL(preview.value)
+  preview.value = ''
+}
+watch(
+  file,
+  (value) => {
+    releasePreview()
+    if (value) preview.value = URL.createObjectURL(value)
+  },
+  { flush: 'sync' },
+)
+function selectPhoto(event) {
+  const selected = event.target.files?.[0]
+  if (!selected) return
+  selectionError.value = ''
+  try {
+    validateProfileImage(selected)
+    file.value = selected
+  } catch (failure) {
+    clearSelection()
+    selectionError.value = failure.message
+  }
+}
+function clearSelection() {
+  file.value = null
+  selectionError.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+}
+const fileSize = (size) =>
+  size < 1024 * 1024
+    ? `${Math.max(1, Math.round(size / 1024))} KB`
+    : `${(size / 1024 / 1024).toFixed(1)} MB`
 const policy = ref(null),
   consent = ref(null),
   agreed = ref(false),
@@ -161,6 +196,7 @@ watch(
 onBeforeUnmount(() => {
   generation++
   releasePhoto()
+  releasePreview()
 })
 const providerLabel = (providers) =>
   (providers || []).map((p) => ({ KAKAO: '카카오', GOOGLE: '구글' })[p] || p).join(', ') ||
@@ -200,18 +236,54 @@ const providerLabel = (providers) =>
           사진 다시 조회
         </button>
       </p>
-      <form class="stack" @submit.prevent="upload">
-        <label class="ui-field"
-          >프로필 사진<input
-            ref="fileInput"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
+      <form class="photo-upload" @submit.prevent="upload">
+        <h3 id="photo-picker-title">프로필 사진</h3>
+        <input
+          ref="fileInput"
+          class="photo-input"
+          type="file"
+          aria-label="프로필 사진 파일"
+          accept="image/jpeg,image/png,image/webp"
+          :disabled="busy || loading"
+          @change="selectPhoto"
+        />
+        <button
+          type="button"
+          class="photo-picker"
+          :class="{ 'has-selection': file }"
+          :disabled="busy || loading"
+          aria-describedby="photo-picker-help"
+          @click="fileInput?.click()"
+        >
+          <span class="photo-picker-thumbnail">
+            <img v-if="preview" :src="preview" alt="선택한 사진 미리보기" />
+            <ImagePlus v-else :size="28" :stroke-width="1.6" aria-hidden="true" />
+          </span>
+          <span class="photo-picker-copy">
+            <strong>{{ file ? file.name : '나를 보여줄 사진을 골라보세요' }}</strong>
+            <span>{{
+              file
+                ? `${fileSize(file.size)} · 아직 저장되지 않았어요`
+                : '기기에 있는 사진을 선택할 수 있어요'
+            }}</span>
+          </span>
+          <span class="photo-picker-action">{{ file ? '다른 사진' : '사진 선택' }}</span>
+        </button>
+        <div class="photo-picker-footer">
+          <p id="photo-picker-help">JPEG, PNG, WebP · 최대 5MB</p>
+          <button
+            v-if="file"
+            type="button"
+            class="photo-cancel"
             :disabled="busy || loading"
-            @change="file = $event.target.files[0]"
-        /></label>
-        <p class="muted">JPEG, PNG, WebP · 최대 5MB</p>
-        <div class="ui-actions">
-          <button class="button button-primary" :disabled="busy || loading || !file">
+            @click="clearSelection"
+          >
+            <X :size="14" aria-hidden="true" />선택 취소
+          </button>
+        </div>
+        <p v-if="selectionError" class="photo-selection-error" role="alert">{{ selectionError }}</p>
+        <div v-if="file || profile.profileImageUrl" class="ui-actions">
+          <button v-if="file" class="button button-primary" :disabled="busy || loading">
             사진 저장</button
           ><button
             v-if="profile.profileImageUrl"
@@ -318,6 +390,137 @@ const providerLabel = (providers) =>
 </template>
 <style scoped src="../../../common/styles/account-design.css"></style>
 <style scoped>
+.photo-upload {
+  display: grid;
+  gap: var(--space-3);
+}
+.photo-upload h3 {
+  margin: 0;
+  font-size: var(--font-body);
+}
+.photo-input {
+  display: none;
+}
+.photo-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-5);
+  text-align: left;
+  font: inherit;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-xl);
+  color: var(--color-text);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.photo-picker:focus-visible,
+.photo-cancel:focus-visible {
+  outline: 2px solid var(--color-primary-pressed);
+  outline-offset: 4px;
+}
+.photo-picker:disabled,
+.photo-cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.photo-picker.has-selection {
+  border-style: solid;
+  border-color: var(--color-primary-pressed);
+}
+.photo-picker-thumbnail {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-pressed);
+}
+.photo-picker-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-picker-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+.photo-picker-copy strong {
+  font-size: var(--font-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.photo-picker-copy > span,
+.photo-picker-footer {
+  font-size: var(--font-caption);
+  color: var(--color-text-muted);
+}
+.photo-picker-action {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--color-primary-pressed);
+  background: var(--color-primary-soft);
+}
+.photo-picker-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.photo-picker-footer p {
+  margin: 0;
+}
+.photo-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.photo-selection-error {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--color-text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .photo-picker:not(:disabled):hover {
+    border-color: var(--color-primary-pressed);
+    background: var(--color-primary-soft);
+  }
+  .photo-cancel:not(:disabled):hover {
+    color: var(--color-text);
+  }
+}
+@media (max-width: 600px) {
+  .photo-picker {
+    flex-wrap: wrap;
+    padding: var(--space-4);
+    gap: var(--space-3);
+  }
+  .photo-picker-thumbnail {
+    width: 48px;
+    height: 48px;
+  }
+  .photo-picker-action {
+    text-align: center;
+    width: 100%;
+  }
+}
 .back-link {
   display: inline-flex;
   margin-top: var(--space-4);
