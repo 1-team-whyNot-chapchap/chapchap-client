@@ -1,5 +1,5 @@
 <script setup>
-import { ChevronLeft } from 'lucide-vue-next'
+import { ArrowLeft } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 defineProps({
   label: { type: String, default: '마이페이지' },
@@ -13,10 +13,11 @@ const emit = defineEmits(['back'])
     :to="to || undefined"
     :type="to ? undefined : 'button'"
     class="page-back"
+    :aria-label="label"
+    :title="label"
     @click="!to && emit('back')"
   >
-    <ChevronLeft :size="18" aria-hidden="true" />
-    <span>{{ label }}</span>
+    <ArrowLeft :size="20" aria-hidden="true" />
   </component>
 </template>
 <style scoped>
@@ -24,10 +25,12 @@ const emit = defineEmits(['back'])
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
   min-height: 44px;
   max-width: 100%;
-  padding: 10px 14px 10px 10px;
+  padding: 0;
   margin: 0;
   border: 1px solid var(--color-border);
   border-radius: 12px;
@@ -44,10 +47,6 @@ const emit = defineEmits(['back'])
 .page-back svg {
   flex-shrink: 0;
   color: var(--color-text-muted);
-}
-.page-back span {
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 .page-back:hover {
   background: var(--color-primary-soft);
