@@ -1,113 +1,165 @@
 <script setup>
-import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { computed, ref } from 'vue'
-import { CheckCircle2, ChevronLeft, Info } from 'lucide-vue-next'
-import { planLabels } from '../../../common/constants/prototypeData'
-import { useAppStore } from '../../../stores/useAppStore'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { CheckCircle2, Info } from 'lucide-vue-next'
+import { DELIVERY_TIME_SLOTS, DELIVERY_WEEKDAY_LABELS } from '../firstSubscriptionForm.js'
+import { createSettingChangeRequest } from '../settingChangeForm.js'
+import { useCurrentSubscriptionStore } from '../stores/useCurrentSubscriptionStore.js'
+import { useOrderStore } from '../stores/useOrderStore.js'
+import { usePlanStore } from '../stores/usePlanStore.js'
+import { useSettingChangeStore } from '../stores/useSettingChangeStore.js'
 
-const emit = defineEmits(['navigate'])
-const appStore = useAppStore()
-const isApplied = ref(false)
-const draft = computed(() => appStore.subscriptionSettingsDraft)
-const planLabel = computed(() => planLabels[draft.value?.planId])
-
-function applyChanges() {
-  // G06: 사전 견적이 없으므로 실제 상태를 바꾸지 않습니다.
-  return
+const router = useRouter(),
+  currentStore = useCurrentSubscriptionStore(),
+  orderStore = useOrderStore(),
+  planStore = usePlanStore(),
+  changeStore = useSettingChangeStore()
+const preview = computed(() => changeStore.preview),
+  result = computed(() => changeStore.result)
+const planName = computed(() => planStore.planById(changeStore.planId)?.name || '선택한 플랜')
+const errorMessage = computed(
+  () => changeStore.error?.serverMessage || changeStore.error?.message || '',
+)
+const currency = (value) => `${Number(value || 0).toLocaleString('ko-KR')}원`
+const differenceLabel = (type) =>
+  ({ INCREASE: '추가 결제', DECREASE: '환불', NO_PRICE_CHANGE: '차액 없음' })[type] || '확인 필요'
+const actionMessage = (action) =>
+  ({
+    ADDITIONAL_PAYMENT: '현재 자동결제수단으로 차액을 결제합니다.',
+    REFUND: '기존 원 결제를 취소하여 환불합니다.',
+    NONE: '추가 결제나 환불 없이 변경합니다.',
+  })[action] || '최종 처리 결과를 확인해 주세요.'
+async function submit() {
+  let request
+  try {
+    request = createSettingChangeRequest(changeStore.planId, changeStore.deliveryConditions)
+  } catch (error) {
+    changeStore.error = error
+    return
+  }
+  if (await changeStore.submit(request))
+    await Promise.all([currentStore.fetchCurrentSubscription(true), orderStore.fetchOrders(true)])
 }
 </script>
 
 <template>
-  <div class="page subscription-settings-confirm-page workspace-ui design-review-page">
-    <DesignPreview title="구독">
-      <button
-        v-if="!isApplied"
-        class="back-button"
-        type="button"
-        @click="emit('navigate', 'wf-024')"
-      >
-        <ChevronLeft :size="18" aria-hidden="true" />설정 변경으로
+  <section class="workspace-ui setting-confirm-page">
+    <button
+      v-if="!result"
+      class="button button-secondary"
+      type="button"
+      @click="router.push({ name: 'wf-024' })"
+    >
+      설정 변경으로
+    </button>
+    <section v-if="!preview && !result" class="ui-empty">
+      <h1>확인할 변경 내용이 없어요.</h1>
+      <button class="button button-primary" type="button" @click="router.push({ name: 'wf-024' })">
+        설정 변경하기
       </button>
-      <section v-if="!draft && !isApplied" class="empty-confirm">
-        <h1>확인할 변경 내용이 없어요.</h1>
-        <button class="button button-primary" type="button" @click="emit('navigate', 'wf-024')">
-          설정 변경하기
-        </button>
+    </section>
+    <template v-else-if="!result"
+      ><header class="ui-heading">
+        <div>
+          <h1>변경 내용을 확인하세요.</h1>
+          <p>최종 실행 시 서버가 최신 상태로 다시 계산합니다.</p>
+        </div>
+      </header>
+      <section class="confirm-card">
+        <h2>변경 설정</h2>
+        <dl>
+          <div>
+            <dt>변경 플랜</dt>
+            <dd>{{ planName }}</dd>
+          </div>
+          <div>
+            <dt>적용 시작일</dt>
+            <dd>{{ preview.effectiveStartDate }}</dd>
+          </div>
+        </dl>
+        <ul>
+          <li v-for="condition in changeStore.deliveryConditions" :key="condition.weekday">
+            <strong>{{ DELIVERY_WEEKDAY_LABELS[condition.weekday] }}</strong
+            ><span
+              >{{ condition.mealQuantity }}식 ·
+              {{
+                DELIVERY_TIME_SLOTS.find((slot) => slot.value === condition.deliveryTimeSlot)?.label
+              }}</span
+            >
+          </li>
+        </ul>
       </section>
-      <template v-else-if="!isApplied"
-        ><section class="page-intro">
-          <h1>변경 내용을<br />확인하세요.</h1>
-          <p>실제 적용일과 금액 차이는 서버 계산 결과를 기준으로 확정됩니다.</p>
-        </section>
-        <section class="confirm-card">
-          <h2>변경 요약</h2>
-          <dl>
-            <div>
-              <dt>변경 플랜</dt>
-              <dd>
-                {{ planLabels[appStore.currentSubscription.planId] }} →
-                {{ planLabel }}
-              </dd>
-            </div>
-            <div>
-              <dt>적용 예정일</dt>
-              <dd>다음 변경 가능 회차 이후 · 서버 확인 필요</dd>
-            </div>
-            <div>
-              <dt>영향 주문</dt>
-              <dd>서버 확인 후 제공</dd>
-            </div>
-          </dl>
-          <h2>요일별 설정</h2>
-          <ul>
-            <li v-for="rule in draft.deliveryRules" :key="rule.id">
-              <strong>{{ rule.label }}</strong
-              ><span>{{ rule.personCount }}명 · {{ rule.deliveryTime }}</span>
-            </li>
-          </ul>
-        </section>
-        <aside class="server-note">
-          <Info :size="20" aria-hidden="true" />
-          <p>
-            추가 결제 또는 부분 취소 금액은 프런트에서 계산하지 않습니다. 실제 확정 전 서버 견적
-            결과를 받아야 합니다.
-          </p>
-        </aside>
-        <div class="mobile-action-bar">
-          <div><span>변경 상태</span><strong>확정 대기</strong></div>
-          <button class="button button-primary" type="button" disabled @click="applyChanges">
-            견적 연결 후 변경 가능
-          </button>
-        </div></template
-      >
-      <section v-else class="apply-result" role="status">
-        <CheckCircle2 :size="44" aria-hidden="true" />
-        <h1>설정을 적용했어요.</h1>
+      <section class="confirm-card price-card">
+        <h2>서버 계산 결과</h2>
+        <dl>
+          <div>
+            <dt>기존 주문 금액</dt>
+            <dd>{{ currency(preview.currentAmount) }}</dd>
+          </div>
+          <div>
+            <dt>변경 후 금액</dt>
+            <dd>{{ currency(preview.changedAmount) }}</dd>
+          </div>
+          <div class="price-total">
+            <dt>{{ differenceLabel(preview.differenceType) }}</dt>
+            <dd>{{ currency(preview.differenceAmount) }}</dd>
+          </div>
+        </dl>
+      </section>
+      <aside class="ui-note">
+        <Info :size="20" aria-hidden="true" />
         <p>
-          현재 화면에서는 시연 상태만 반영했습니다. 실제 서비스에서는 서버 확정 응답 후 적용 결과를
-          표시해야 합니다.
+          {{ actionMessage(preview.requiredAction) }} 미리보기는 저장·결제·환불을 실행하지 않습니다.
         </p>
+      </aside>
+      <p v-if="errorMessage" class="setting-error" role="alert">{{ errorMessage }}</p>
+      <div class="ui-actions ui-actions--end">
         <button
           class="button button-primary"
           type="button"
-          @click="emit('navigate', 'subscription')"
+          :disabled="changeStore.submitStatus === 'loading'"
+          @click="submit"
         >
-          내 구독에서 확인하기
+          {{ changeStore.submitStatus === 'loading' ? '변경 처리 중…' : '변경 확정' }}
         </button>
-      </section>
-    </DesignPreview>
-  </div>
+      </div></template
+    >
+    <section v-else class="ui-empty result" role="status">
+      <CheckCircle2 :size="48" aria-hidden="true" />
+      <h1>설정 변경 결과를 확인하세요.</h1>
+      <p>
+        {{ result.effectiveStartDate }}부터 적용됩니다. {{ differenceLabel(result.differenceType) }}
+        {{ currency(result.differenceAmount) }}
+      </p>
+      <p v-if="result.refund">
+        환불 요청 {{ currency(result.refund.requestedAmount) }} · 완료
+        {{ currency(result.refund.refundedAmount) }} · 미처리
+        {{ currency(result.refund.unprocessedAmount) }}
+      </p>
+      <p v-else-if="result.paymentConfirmationRequired && result.currentPaymentMethod">
+        {{ result.currentPaymentMethod.cardCompany || '현재 자동결제수단' }}
+        {{ result.currentPaymentMethod.maskedCardNumber || '' }}으로 처리했습니다.
+      </p>
+      <button
+        class="button button-primary"
+        type="button"
+        @click="router.push({ name: 'subscription' })"
+      >
+        내 구독에서 확인하기
+      </button>
+    </section>
+  </section>
 </template>
 
 <style scoped>
-.subscription-settings-confirm-page {
-  max-width: 760px;
-  margin: 0 auto;
+.setting-confirm-page {
+  display: grid;
+  gap: 20px;
+  padding-block: 36px 64px;
 }
 .confirm-card {
   display: grid;
-  gap: 20px;
-  margin-top: 30px;
+  gap: 18px;
   padding: clamp(20px, 4vw, 30px);
   border: 1px solid var(--color-border);
   border-radius: 18px;
@@ -115,7 +167,6 @@ function applyChanges() {
 }
 .confirm-card h2 {
   margin: 0;
-  font-size: var(--font-section-title);
 }
 .confirm-card dl {
   margin: 0;
@@ -127,7 +178,6 @@ function applyChanges() {
   gap: 18px;
   padding: 14px 0;
   border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-caption);
 }
 .confirm-card dt {
   color: var(--color-text-muted);
@@ -151,46 +201,23 @@ function applyChanges() {
   padding: 13px;
   border-radius: 11px;
   background: var(--color-surface-subtle);
-  font-size: var(--font-caption);
 }
 .confirm-card li span {
   color: var(--color-text-muted);
 }
-.server-note {
-  display: flex;
-  gap: 9px;
-  margin-top: 16px;
-  padding: 14px;
-  border-radius: 13px;
-  background: var(--color-info-soft);
-  color: var(--color-info);
-}
-.server-note p {
-  margin: 0;
-  color: inherit;
-  font-size: var(--font-caption);
-  line-height: var(--line-height-body);
-}
-.apply-result,
-.empty-confirm {
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  padding: 74px 20px;
-  text-align: center;
-}
-.apply-result svg {
+.price-total dt,
+.price-total dd {
   color: var(--color-primary-pressed);
 }
-.apply-result h1,
-.empty-confirm h1 {
+.setting-error {
   margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff0ed;
+  color: #9e3825;
 }
-.apply-result p {
-  max-width: 470px;
-  margin: 0;
-  color: var(--color-text-muted);
-  line-height: var(--line-height-body);
+.result svg {
+  color: var(--color-primary-pressed);
 }
 @media (max-width: 540px) {
   .confirm-card dl div,
