@@ -38,8 +38,8 @@ const navigationItems = computed(() => [
   { id: 'home', label: '홈', icon: Home },
   ...(authSession.state.user
     ? [
-        { id: 'menu', label: '메뉴', icon: Salad },
         { id: 'plans', label: '플랜', icon: Package },
+        { id: 'menu', label: '메뉴', icon: Salad },
         { id: 'mypage', label: '마이', icon: CircleUserRound },
       ]
     : [

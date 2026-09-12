@@ -7,8 +7,8 @@ import { computed } from 'vue'
 const navigationItems = computed(() =>
   authSession.state.user
     ? [
-        { id: 'menu', label: '메뉴' },
         { id: 'plans', label: '플랜' },
+        { id: 'menu', label: '메뉴' },
         { id: 'mypage', label: '마이' },
       ]
     : [
