@@ -6,9 +6,13 @@ import { customerApi as api } from '../api/customerApi.js'
 import { useCustomerRequest } from '../useCustomerRequest.js'
 import RequestStatus from './RequestStatus.vue'
 import ConsultationHandoffSummary from './ConsultationHandoffSummary.vue'
+import CustomerChatView from './CustomerChatView.vue'
 import http, { authSession } from '../../../common/api/http.js'
 import { createConsultationConnection } from '../realtime/consultationConnection.js'
 const props = defineProps({ admin: Boolean, detail: Boolean })
+const mobileOpen = ref(false),
+  titles = ref({})
+const drafts = new Map()
 const route = useRoute(),
   router = useRouter()
 const { busy, error, notice, run } = useCustomerRequest()
@@ -95,7 +99,14 @@ function connectConversation() {
   connection.start()
 }
 function sendMessage() {
-  if (sending.value) return
+  if (
+    sending.value ||
+    busy.value ||
+    connectionState.value !== 'connected' ||
+    !messageDraft.value.trim() ||
+    !['AI_HANDLING', 'IN_PROGRESS'].includes(selected.value?.status)
+  )
+    return
   try {
     connection.send(messageDraft.value)
     sending.value = true
@@ -110,8 +121,9 @@ function sendMessage() {
 }
 watch(
   () => selected.value?.consultationId,
-  () => {
-    messageDraft.value = ''
+  (id, previousId) => {
+    if (previousId) drafts.set(String(previousId), messageDraft.value)
+    messageDraft.value = id ? drafts.get(String(id)) || '' : ''
     confirmingClose.value = false
     sending.value = false
     clearTimeout(confirmationTimer)
@@ -134,6 +146,9 @@ watch(
       messages.value = []
       rows.value = []
       assigned.value = []
+      drafts.clear()
+      draft.value = ''
+      titles.value = {}
     }
   },
 )
@@ -145,9 +160,9 @@ onUnmounted(() => {
   clearInterval(statusTimer)
 })
 const states = {
-  AI_HANDLING: '상담 중',
-  WAITING_ADMIN: '관리자 연결 대기',
-  IN_PROGRESS: '관리자 상담 중',
+  AI_HANDLING: 'AI 상담 중',
+  WAITING_ADMIN: '상담사 연결 대기',
+  IN_PROGRESS: '상담사 상담 중',
   CLOSED: '종료',
 }
 async function select(id) {
@@ -167,9 +182,24 @@ async function select(id) {
     ).values(),
   ].sort((a, b) => a.sequenceNo - b.sequenceNo)
   selected.value = conversation
+  const first = history.messages.find((message) => message.senderType === 'USER')
+  if (first) titles.value[id] = first.content.slice(0, 80)
 }
 async function open(id) {
+  mobileOpen.value = true
   await router.replace({ query: { ...route.query, consultationId: String(id) } })
+}
+async function newConversation() {
+  if (busy.value || sending.value) return
+  selectionVersion++
+  selected.value = null
+  messages.value = []
+  error.value = ''
+  notice.value = ''
+  mobileOpen.value = true
+  const query = { ...route.query }
+  delete query.consultationId
+  await router.replace({ query })
 }
 const reload = () =>
   run(async () => {
@@ -189,12 +219,13 @@ const reload = () =>
       connectConversation()
   })
 function create() {
+  if (!draft.value.trim()) return
   run(async () => {
     const created = await api.createConsultation(draft.value.trim())
     draft.value = ''
-    rows.value = await api.consultations()
     await open(created.consultationId)
     await select(created.consultationId)
+    rows.value = await api.consultations()
   })
 }
 function accept(row) {
@@ -227,7 +258,18 @@ watch(
     reload()
   },
 )
+watch(
+  () => selected.value,
+  (value) => {
+    if (!value) return
+    const index = rows.value.findIndex(
+      (row) => String(row.consultationId) === String(value.consultationId),
+    )
+    if (index >= 0) rows.value[index] = value
+  },
+)
 onMounted(() => {
+  mobileOpen.value = Boolean(route.query.consultationId)
   reload()
   // 수락/종료는 메시지 이벤트가 아니므로 화면에 열린 상담의 상태를 별도로 확인한다.
   statusTimer = setInterval(async () => {
@@ -248,7 +290,30 @@ onMounted(() => {
 })
 </script>
 <template>
-  <section class="ui-stack">
+  <CustomerChatView
+    v-if="!admin"
+    :rows="rows"
+    :selected="selected"
+    :messages="messages"
+    :titles="titles"
+    :busy="busy"
+    :sending="sending"
+    :mobile-open="mobileOpen"
+    :connection-state="connectionState"
+    :error="error"
+    :notice="notice"
+    v-model:draft="draft"
+    v-model:message-draft="messageDraft"
+    @open="open"
+    @new="newConversation"
+    @back="mobileOpen = false"
+    @reload="reload"
+    @handoff="handoff"
+    @reconnect="connectConversation"
+    @create="create"
+    @send="sendMessage"
+  />
+  <section v-else class="ui-stack">
     <div class="ui-actions ui-actions--end">
       <button class="button button-secondary" :disabled="busy" @click="reload">새로고침</button
       ><RouterLink v-if="detail" class="button button-secondary" to="/admin/consultations"
