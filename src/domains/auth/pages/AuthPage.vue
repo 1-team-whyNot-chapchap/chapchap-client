@@ -76,6 +76,7 @@ function startSocial(provider) {
   max-width: 620px;
 }
 .auth-brand {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -231,6 +232,10 @@ function startSocial(provider) {
   font-size: var(--font-caption);
 }
 .rider-login-entry a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 12px;
   color: var(--color-primary-pressed);
   font-weight: 800;
   text-underline-offset: 3px;

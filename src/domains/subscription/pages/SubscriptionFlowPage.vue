@@ -1,6 +1,8 @@
 <script setup>
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import http from '../../../common/api/http.js'
+import { createAccountDataApi } from '../api/accountDataApi.js'
 import { CheckCircle2, Plus, Truck } from 'lucide-vue-next'
 import { planLabels } from '../../../common/constants/prototypeData'
 import { useAppStore } from '../../../stores/useAppStore'
@@ -22,6 +24,30 @@ const props = defineProps({
 const emit = defineEmits(['navigate'])
 const appStore = useAppStore()
 
+const optionsLoading = ref(false),
+  optionsError = ref('')
+let active = true
+async function loadOptions() {
+  optionsLoading.value = true
+  optionsError.value = ''
+  appStore.addresses = []
+  appStore.paymentMethods = []
+  try {
+    const api = createAccountDataApi(http)
+    const [addresses, cards] = await Promise.all([api.addresses(), api.paymentMethods()])
+    if (!active) return
+    appStore.addresses = addresses
+    appStore.paymentMethods = cards
+  } catch {
+    if (active) optionsError.value = '배송지와 결제수단을 불러오지 못했습니다. 다시 시도해 주세요.'
+  } finally {
+    if (active) optionsLoading.value = false
+  }
+}
+onMounted(loadOptions)
+onUnmounted(() => {
+  active = false
+})
 const steps = ['일정', '배송지', '인원·시간', '확인', '결제']
 const stepHeaders = [
   {
@@ -169,6 +195,11 @@ function goNext() {
 
 <template>
   <div class="page subscription-flow workspace-ui design-review-page">
+    <p v-if="optionsLoading" role="status">배송지와 결제수단을 불러오고 있어요.</p>
+    <div v-if="optionsError" class="ui-note" role="alert">
+      <p>{{ optionsError }}</p>
+      <button class="button button-secondary" @click="loadOptions">다시 시도</button>
+    </div>
     <DesignPreview title="구독">
       <ol class="subscription-stepper" aria-label="구독 신청 진행 단계">
         <li

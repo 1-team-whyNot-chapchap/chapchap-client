@@ -1,3 +1,4 @@
+import { scrollBehavior } from './scrollBehavior.js'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { pageCatalog } from './pageCatalog'
 import { authSession } from '../common/api/http.js'
@@ -125,6 +126,7 @@ const adminRoutes = pageCatalog
 // 별도 서버 설정이 없는 현재 디자인 프로토타입에서도 새로고침 시 화면을 안전하게 다시 찾습니다.
 // 예: #/plans 주소는 플랜 화면을 뜻합니다.
 const router = createRouter({
+  scrollBehavior,
   history: createWebHashHistory(),
   routes: [
     {

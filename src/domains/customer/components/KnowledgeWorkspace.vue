@@ -1,4 +1,5 @@
 <script setup>
+import FilePicker from '../../../common/components/forms/FilePicker.vue'
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createKnowledgePoller, knowledgeStatuses as statuses } from '../knowledgeProgress.js'
@@ -97,14 +98,15 @@ function lookup() {
             type="datetime-local"
             required
         /></label>
-        <label class="ui-field"
-          >문서 파일<input
-            type="file"
-            accept=".pdf,.md,.txt"
-            required
-            @change="file = $event.target.files[0]"
-        /></label>
-        <button class="button button-primary" :disabled="!file">등록</button>
+        <FilePicker
+          v-model="file"
+          label="지식 문서"
+          accept=".pdf,.md,.txt"
+          hint="PDF, Markdown, 텍스트 문서"
+          required
+          :disabled="busy"
+        />
+        <button class="button button-primary ui-action-end" :disabled="!file">등록</button>
       </fieldset>
     </form>
     <form class="ui-surface ui-stack" @submit.prevent="lookup">
@@ -114,7 +116,9 @@ function lookup() {
           required
           pattern="[1-9][0-9]*"
           inputmode="numeric" /></label
-      ><button class="button button-secondary" :disabled="busy">처리 상태 조회</button>
+      ><button class="button button-secondary ui-action-end" :disabled="busy">
+        처리 상태 조회
+      </button>
     </form>
     <article v-if="result" class="ui-surface ui-stack">
       <h2>접수 #{{ result.knowledgeVersionId }}</h2>
