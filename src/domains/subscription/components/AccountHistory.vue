@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import http from '../../../common/api/http.js'
 import { createAccountDataApi } from '../api/accountDataApi.js'
 import { displayDateTime } from '../../../common/utils/displayDate.js'
@@ -98,9 +99,10 @@ onUnmounted(() => {
 </script>
 <template>
   <div class="workspace-ui design-review-page account-history">
-    <RouterLink class="button button-ghost back" :to="detail ? paths[kind] : '/mypage'">{{
-      detail ? '목록으로' : '마이페이지로'
-    }}</RouterLink>
+    <PageBackButton
+      :to="detail ? paths[kind] : '/mypage'"
+      :label="detail ? names[kind] : '마이페이지'"
+    />
     <header class="ui-heading">
       <div>
         <h1>{{ names[kind] }}{{ detail ? ' 상세' : '' }}</h1>
@@ -203,9 +205,6 @@ onUnmounted(() => {
 .account-history {
   max-width: 880px;
   margin-inline: auto;
-}
-.back {
-  margin-bottom: 24px;
 }
 .account-history p,
 .account-history h2 {
