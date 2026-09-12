@@ -390,6 +390,16 @@ const providerLabel = (providers) =>
 </template>
 <style scoped src="../../../common/styles/account-design.css"></style>
 <style scoped>
+.profile-design .ui-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.consent form > .button {
+  justify-self: end;
+}
+.profile-design .button {
+  min-height: 44px;
+}
 .photo-upload {
   display: grid;
   gap: var(--space-3);
@@ -598,6 +608,7 @@ dd {
 }
 .withdrawal > button {
   flex-shrink: 0;
+  align-self: flex-end;
 }
 dialog {
   width: min(480px, calc(100% - 32px));
