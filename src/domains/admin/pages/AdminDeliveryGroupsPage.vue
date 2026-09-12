@@ -8,7 +8,7 @@ import Column from 'primevue/column'
 import AdminFrame from '../components/AdminFrame.vue'
 import http from '../../../common/api/http.js'
 import { createAdminDeliveryAssignmentApi } from '../api/adminDeliveryAssignmentApi.js'
-import { popupDatePickerPt, tableColumnPt, paginatorPt } from '../../../common/constants/primeUiPt'
+import { datePickerPt, tableColumnPt, paginatorPt } from '../../../common/constants/primeUiPt'
 const route = useRoute()
 const router = useRouter()
 const api = createAdminDeliveryAssignmentApi(http)
@@ -78,7 +78,7 @@ onMounted(load)
           input-id="group-date"
           date-format="yy.mm.dd"
           :manual-input="false"
-          :pt="popupDatePickerPt"
+          :pt="datePickerPt"
           placeholder="전체 날짜"
       /></label>
       <label class="ui-field"

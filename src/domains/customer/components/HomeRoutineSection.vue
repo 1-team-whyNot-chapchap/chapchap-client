@@ -7,13 +7,13 @@ const routineSteps = [
   },
   {
     number: '02',
-    title: '포함 메뉴 확인',
-    description: '플랜별 메뉴와 구성을 확인해요.',
+    title: '포함 메뉴를 구성',
+    description: '플랜 범위 안에서 원하는 메뉴를 담아요.',
   },
   {
     number: '03',
     title: '정기적으로 받아보기',
-    description: '내 구독에서 주문과 결제 내역을 확인해요.',
+    description: '다음 배송과 결제 일정도 한눈에 확인해요.',
   },
 ]
 </script>

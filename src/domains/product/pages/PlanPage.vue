@@ -3,8 +3,10 @@ import DesignPreview from '../../../common/components/feedback/DesignPreview.vue
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChevronRight } from 'lucide-vue-next'
+import { useAppStore } from '../../../stores/useAppStore'
 import { usePlanStore } from '../../subscription/stores/usePlanStore.js'
 
+const appStore = useAppStore()
 const planStore = usePlanStore()
 const router = useRouter()
 const emit = defineEmits(['navigate'])
@@ -22,7 +24,8 @@ onMounted(async () => {
 })
 
 function selectPlan(planId) {
-  router.push({ name: 'wf-013', query: { planId } })
+  appStore.beginSubscriptionApplication(planId)
+  emit('navigate', 'wf-013')
 }
 
 function highlightPlan(planId) {

@@ -104,7 +104,6 @@ defineEmits(['makeDefault', 'edit'])
 .form-field textarea:focus {
   border-color: var(--color-primary-pressed);
   outline: 3px solid var(--color-primary-soft);
-  outline-offset: -3px;
 }
 .form-field input:disabled {
   color: var(--color-text-muted);

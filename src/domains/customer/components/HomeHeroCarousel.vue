@@ -10,8 +10,8 @@ const slides = [
     eyebrow: '오늘 한 끼가 필요한 순간',
     highlight: '맛있는 식사도',
     title: '가볍게 챙겨요.',
-    benefit: '내 생활에 맞는 플랜과 메뉴를 둘러보세요.',
-    action: { label: '메뉴 보기', route: 'menu' },
+    benefit: '원하는 날에 받고, 이번 주 메뉴를 직접 골라보세요.',
+    action: { label: '이번 주 메뉴 보기', route: 'menu' },
     imagePosition: 'right center',
   },
   {
@@ -19,7 +19,7 @@ const slides = [
     eyebrow: '내 생활에 맞춘 식사 루틴',
     highlight: '바쁜 날에도',
     title: '든든하게 챙겨요.',
-    benefit: '내 일정에 맞는 배송 요일을 선택해 보세요.',
+    benefit: '2주 단위로 구성하고, 내 일정에 맞춰 편하게 받아보세요.',
     action: { label: '플랜 살펴보기', route: 'plans' },
     imagePosition: '72% center',
   },
@@ -213,7 +213,6 @@ function handleTouchEnd(event) {
 }
 
 .home-hero__link {
-  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -275,34 +274,27 @@ function handleTouchEnd(event) {
 }
 
 .home-hero__indicators button {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  align-items: center;
+  width: 34px;
+  height: 3px;
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.45);
   transition:
     background 0.2s ease,
     transform 0.2s ease;
 }
 
-.home-hero__indicators button::before {
-  content: '';
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.45);
-}
-.home-hero__indicators button.is-active::before {
+.home-hero__indicators button.is-active {
   background: #fff;
+  transform: scaleX(1.15);
 }
 
 .home-hero__arrow:focus-visible,
 .home-hero__link:focus-visible,
 .home-hero__indicators button:focus-visible {
   outline: 3px solid #fff;
-  outline-offset: -3px;
+  outline-offset: 4px;
 }
 
 @media (max-width: 760px) {

@@ -186,7 +186,7 @@
 .admin-operations :focus-visible,
 .ops-pagination :focus-visible {
   outline: 3px solid var(--color-primary-hover);
-  outline-offset: -3px;
+  outline-offset: 3px;
 }
 @media (max-width: 1024px) {
   .ops-split {

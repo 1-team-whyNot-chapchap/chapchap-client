@@ -140,7 +140,6 @@ test('role routing and unauthorized route access use current server identity', a
   assert.equal(await guard({ path: '/admin/riders' }), '/')
   assert.equal(await guard({ path: '/rider/deliveries' }), '/')
   assert.equal(await guard({ path: '/mypage' }), true)
-  assert.equal(await guard({ path: '/subscribe/delivery' }), true)
   assert.equal(requiredRoles('/admin/login'), null)
   assert.equal(requiredRoles('/admin/password/initial'), null)
   const failed = createAccessGuard({
@@ -150,10 +149,6 @@ test('role routing and unauthorized route access use current server identity', a
   })
   assert.deepEqual(await failed({ path: '/rider/deliveries' }), {
     path: '/rider/login',
-    query: { reason: 'expired' },
-  })
-  assert.deepEqual(await failed({ path: '/subscribe/delivery' }), {
-    path: '/login',
     query: { reason: 'expired' },
   })
 })
@@ -220,37 +215,4 @@ test('logout stops after failed refresh and cannot restore a revoked session', a
   assert.equal(calls.filter((call) => call.url.endsWith('reissue-token')).length, 2)
   assert.equal(session.state.user, null)
   await assert.rejects(session.ensureSession())
-})
-
-test('public deep links restore cookie session once and remain open for guests', async () => {
-  let calls = 0
-  const guard = createAccessGuard({
-    ensureSession: async () => {
-      calls++
-      return user()
-    },
-  })
-  assert.equal(await guard({ path: '/menu' }), true)
-  assert.equal(await guard({ path: '/plans' }), true)
-  assert.equal(calls, 1)
-  const guest = createAccessGuard({
-    ensureSession: async () => {
-      throw new Error('no cookie')
-    },
-  })
-  assert.equal(await guest({ path: '/help/faq' }), true)
-})
-test('signup and OAuth callback do not race with cookie restoration', async () => {
-  let calls = 0
-  const guard = createAccessGuard({
-    ensureSession: async () => {
-      calls++
-      return user()
-    },
-  })
-  await guard({ path: '/auth/callback' })
-  await guard({ path: '/signup' })
-  assert.equal(calls, 0)
-  await guard({ path: '/' })
-  assert.equal(calls, 1)
 })

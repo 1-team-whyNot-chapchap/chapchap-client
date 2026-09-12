@@ -1,5 +1,4 @@
 <script setup>
-import FilePicker from '../../../common/components/forms/FilePicker.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import Dialog from 'primevue/dialog'
@@ -245,15 +244,14 @@ onMounted(load)
         >
         <template v-if="method === '비대면 전달'"
           ><label class="ui-field">보관 위치<textarea v-model="place" rows="2" required /></label
-          ><FilePicker
-            v-model="photo"
-            label="완료 사진"
-            accept=".jpg,.jpeg,.png,.webp"
-            hint="JPEG, PNG, WebP 이미지"
-            required
-            :disabled="submitting"
-            @change="selectPhoto"
-          />
+          ><label class="ui-field"
+            >완료 사진 (필수)<input
+              type="file"
+              class="completion-photo-input"
+              accept=".jpg,.jpeg,.png,.webp"
+              required
+              @change="selectPhoto"
+          /></label>
           <p v-if="photo" class="ui-muted">{{ photo.name }} · 업로드하지 않음</p>
           <p v-if="photoError" class="ui-error" role="alert">{{ photoError }}</p>
           <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-field"
@@ -322,7 +320,7 @@ onMounted(load)
 }
 .completion-photo-input:focus-visible {
   outline: 2px solid var(--color-primary-hover);
-  outline-offset: -3px;
+  outline-offset: 3px;
 }
 @media (hover: hover) {
   .completion-photo-input::file-selector-button:hover {

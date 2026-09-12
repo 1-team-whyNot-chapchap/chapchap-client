@@ -142,7 +142,7 @@
 }
 :is(.button, .text-button, .text-action, .back-button):focus-visible {
   outline: 3px solid var(--color-primary-pressed);
-  outline-offset: -3px;
+  outline-offset: 3px;
 }
 .section-heading {
   display: flex;
@@ -555,7 +555,6 @@
 .form-field textarea:focus {
   border-color: var(--color-primary-pressed);
   outline: 3px solid var(--color-primary-soft);
-  outline-offset: -3px;
 }
 
 .form-field input:disabled {
@@ -770,7 +769,7 @@ button.history-list-item:hover {
 .catalog-search input:focus-visible,
 .admin-toolbar input:focus-visible {
   outline: 3px solid rgba(150, 167, 94, 0.45);
-  outline-offset: -3px;
+  outline-offset: 3px;
 }
 
 .photo-placeholder {

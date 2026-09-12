@@ -104,7 +104,7 @@ const current = computed(() => states[props.state] || states['not-found'])
 }
 .system-state-page :focus-visible {
   outline: 3px solid var(--color-primary-hover);
-  outline-offset: -3px;
+  outline-offset: 3px;
 }
 
 .system-state-page__actions {

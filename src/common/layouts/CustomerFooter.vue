@@ -65,7 +65,6 @@ const sections = [
 
 <style scoped>
 .customer-footer {
-  flex-shrink: 0;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -195,12 +194,7 @@ const sections = [
   .customer-footer__bottom {
     display: grid;
     gap: 8px;
-    padding: 16px 20px;
-  }
-}
-@media (max-width: 1320px) {
-  .customer-footer__bottom {
-    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+    padding: 16px 20px 100px;
   }
 }
 </style>

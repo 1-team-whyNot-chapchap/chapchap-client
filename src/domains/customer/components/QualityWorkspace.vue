@@ -1,6 +1,4 @@
 <script setup>
-import FilePicker from '../../../common/components/forms/FilePicker.vue'
-import { displayDateTime } from '../../../common/utils/displayDate.js'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { customerApi as api } from '../api/customerApi.js'
@@ -99,13 +97,10 @@ onMounted(reload)
 <template>
   <section class="ui-stack">
     <RequestStatus :busy="busy" :error="error" :notice="notice" />
-    <div class="ui-actions ui-actions--end">
+    <div class="ui-actions">
       <RouterLink v-if="!admin" class="button button-secondary" to="/help/inquiries"
         >문의 목록</RouterLink
-      ><RouterLink
-        v-if="!admin && !create"
-        class="button button-primary ui-action-end"
-        to="/help/inquiries/new"
+      ><RouterLink v-if="!admin && !create" class="button button-primary" to="/help/inquiries/new"
         >문의 작성</RouterLink
       ><button v-if="!create" class="button button-secondary" :disabled="busy" @click="reload">
         새로고침
@@ -145,28 +140,25 @@ onMounted(reload)
         <label class="ui-field"
           >문의 내용<textarea v-model="form.content" required rows="6" />
         </label>
-        <FilePicker
-          v-model="files"
-          label="첨부 파일"
-          multiple
-          accept="image/jpeg,image/png,image/webp,application/pdf"
-          hint="JPEG·PNG·WebP·PDF · 파일당 10MiB, 합계 11MB"
-          :disabled="busy"
-          @change="selectFiles"
-        />
+        <label class="ui-field"
+          >첨부 파일<input
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            @change="selectFiles"
+        /></label>
+        <p v-for="file in files" :key="file.name">{{ file.name }}</p>
         <p class="ui-muted">
           현재 기타 문의를 접수할 수 있습니다. 첨부 파일은 문의와 함께 전송됩니다.
         </p>
-        <button class="button button-primary ui-action-end" :disabled="!form.content.trim()">
-          문의 접수
-        </button>
+        <button class="button button-primary" :disabled="!form.content.trim()">문의 접수</button>
       </fieldset>
     </form>
     <ul v-if="!create && !detail" class="ui-list">
       <li v-for="row in rows" :key="row.qualityInquiryId" class="ui-list-item">
         <div>
           <h2>{{ types[row.inquiryType] }} 문의 #{{ row.qualityInquiryId }}</h2>
-          <p>{{ states[row.status] }} · {{ displayDateTime(row.createdAt) }}</p>
+          <p>{{ states[row.status] }} · {{ row.createdAt }}</p>
         </div>
         <button
           v-if="admin"
@@ -205,7 +197,7 @@ onMounted(reload)
             :disabled="busy"
             :required="selected.status === 'IN_PROGRESS'"
           /></label
-        ><button class="button button-primary ui-action-end" :disabled="busy">
+        ><button class="button button-primary" :disabled="busy">
           {{ states[next[selected.status]] }}로 변경
         </button>
       </form>

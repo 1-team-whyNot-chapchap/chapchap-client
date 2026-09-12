@@ -118,9 +118,6 @@ onMounted(loadFaqs)
 
 .support-card .button {
   margin-top: 24px;
-  margin-left: auto;
-  display: flex;
-  width: fit-content;
 }
 
 .faq-list {
@@ -130,11 +127,6 @@ onMounted(loadFaqs)
 
 .faq-list > div {
   margin-bottom: 20px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
 
 .faq-list article {

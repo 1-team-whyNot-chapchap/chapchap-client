@@ -1,164 +1,106 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import { MapPin, Plus } from 'lucide-vue-next'
+import { useAppStore } from '../../../stores/useAppStore'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
-import ContentState from '../../../common/components/feedback/ContentState.vue'
-import StateNotice from '../../../common/components/feedback/StateNotice.vue'
+import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import { dialogPt } from '../../../common/constants/primeUiPt'
-import {
-  addressErrorMessage,
-  createAddressForm,
-  formatAddress,
-  toAddressRequest,
-} from '../../subscription/addressForm.js'
-import { useAddressStore } from '../../subscription/stores/useAddressStore.js'
-
 const emit = defineEmits(['navigate'])
-const addressStore = useAddressStore()
-const editing = ref(null)
+const appStore = useAppStore()
+const isOpen = ref(false)
 const removing = ref(null)
-const form = reactive(createAddressForm())
-const notice = ref(null)
-
+const editingId = ref(null)
+const notice = ref('')
+const emptyForm = () => ({
+  name: '',
+  recipient: '',
+  phone: '',
+  postalCode: '',
+  address: '',
+  addressLine2: '',
+  deliveryMethod: '문 앞 비대면 배송',
+  deliveryRequest: '',
+  isDefault: false,
+})
+const form = reactive(emptyForm())
 const addresses = computed(() =>
-  [...addressStore.addresses].sort(
-    (left, right) => Number(right.isDefault) - Number(left.isDefault),
-  ),
+  [...appStore.addresses].sort((a, b) => Number(b.isDefault) - Number(a.isDefault)),
 )
-const isEditing = computed(() => Boolean(editing.value))
-const mutationMessage = computed(() =>
-  addressStore.mutationError ? addressErrorMessage(addressStore.mutationError) : '',
-)
-
-onMounted(() => addressStore.fetchAddresses())
-
-function openEdit(address) {
-  editing.value = address
-  Object.assign(form, createAddressForm(address))
-  notice.value = null
+function openForm(address) {
+  editingId.value = address?.id || null
+  Object.assign(form, emptyForm(), address || {})
+  isOpen.value = true
 }
-
-function closeEdit() {
-  editing.value = null
-  Object.assign(form, createAddressForm())
+function save() {
+  if (
+    ![form.name, form.recipient, form.phone, form.postalCode, form.address].every((v) => v.trim())
+  )
+    return
+  const previous = appStore.addresses.find((a) => a.id === editingId.value)
+  if (previous) Object.assign(previous, form)
+  else
+    appStore.addresses.push({
+      ...form,
+      id: `sample-${crypto.randomUUID()}`,
+      isDefault: form.isDefault || !appStore.addresses.length,
+    })
+  const id = previous?.id || appStore.addresses.at(-1).id
+  if (form.isDefault) appStore.setDefaultAddress(id)
+  isOpen.value = false
+  notice.value = '예시 목록에 반영했어요. 실제 계정에는 저장되지 않습니다.'
 }
-
-async function saveEdit() {
-  if (!editing.value) return
-  const saved = await addressStore.updateAddress(editing.value.addressId, toAddressRequest(form))
-  if (!saved) return
-  closeEdit()
-  notice.value = {
-    tone: 'success',
-    title: '배송지를 수정했어요.',
-    message: '변경 내용이 저장되었습니다. 목록을 확인해 주세요.',
-  }
-}
-
-async function setDefault(address) {
-  notice.value = null
-  const saved = await addressStore.setDefaultAddress(address.addressId)
-  if (saved) {
-    notice.value = {
-      tone: 'success',
-      title: '기본 배송지를 변경했어요.',
-      message: '변경 내용이 저장되었습니다. 목록을 확인해 주세요.',
-    }
-  }
-}
-
-async function remove() {
-  if (!removing.value) return
-  const deleted = await addressStore.deleteAddress(removing.value.addressId)
-  if (!deleted) return
+function remove() {
+  if (!removing.value || removing.value.isDefault) return
+  appStore.addresses = appStore.addresses.filter((a) => a.id !== removing.value.id)
   removing.value = null
-  notice.value = {
-    tone: 'success',
-    title: '배송지를 삭제했어요.',
-    message: '변경 내용이 저장되었습니다. 목록을 확인해 주세요.',
-  }
+  notice.value = '예시 목록에서 삭제했어요.'
 }
 </script>
 
 <template>
   <div class="workspace-ui design-review-page">
     <PageBackButton @back="emit('navigate', 'mypage')" />
-
     <header class="ui-heading">
       <div>
         <h1>배송지 관리</h1>
         <p>자주 받는 곳을 등록하고 기본 배송지를 선택하세요.</p>
       </div>
-      <button class="button button-primary" type="button" @click="emit('navigate', 'wf-029')">
+      <button class="button button-primary" @click="openForm()">
         <Plus :size="18" aria-hidden="true" />배송지 등록
       </button>
     </header>
-
-    <StateNotice
-      v-if="notice"
-      :tone="notice.tone"
-      :title="notice.title"
-      :message="notice.message"
-    />
-    <StateNotice
-      v-if="mutationMessage"
-      tone="danger"
-      title="요청을 처리하지 못했어요."
-      :message="mutationMessage"
-    />
-
-    <ContentState
-      :state="
-        addressStore.listStatus === 'success'
-          ? 'ready'
-          : addressStore.listStatus === 'idle'
-            ? 'loading'
-            : addressStore.listStatus
-      "
-      empty-title="등록된 배송지가 없어요."
-      @retry="addressStore.fetchAddresses(true)"
-    >
-      <section class="ui-surface" aria-label="등록된 배송지">
-        <article v-for="address in addresses" :key="address.addressId" class="ui-list-item">
+    <p v-if="notice" class="ui-note" role="status">{{ notice }}</p>
+    <DesignPreview title="배송지" empty="등록된 배송지가 없어요.">
+      <section v-if="addresses.length" class="ui-surface" aria-label="등록된 배송지">
+        <article v-for="address in addresses" :key="address.id" class="ui-list-item">
           <span class="ui-icon"><MapPin :size="22" aria-hidden="true" /></span>
           <div>
-            <div class="ui-actions ui-actions--end">
+            <div class="ui-actions">
               <h2>{{ address.name }}</h2>
               <span v-if="address.isDefault" class="mini-badge">기본 배송지</span>
             </div>
-            <p>{{ address.recipientName }} · {{ address.recipientPhone }}</p>
-            <p>{{ formatAddress(address) }}</p>
-            <p
-              v-if="address.deliveryMethod === 'OTHER' && address.otherDeliveryRequest"
-              class="ui-muted"
-            >
-              배송 요청: {{ address.otherDeliveryRequest }}
-            </p>
+            <p>{{ address.recipient }} · {{ address.phone }}</p>
+            <p>{{ address.address }}</p>
           </div>
-          <div class="ui-actions ui-actions--end">
+          <div class="ui-actions">
             <button
               v-if="!address.isDefault"
               class="text-button"
-              type="button"
-              :disabled="addressStore.isMutating"
-              @click="setDefault(address)"
+              @click="appStore.setDefaultAddress(address.id)"
             >
               기본 지정
             </button>
             <button
               class="text-button"
-              type="button"
-              :disabled="addressStore.isMutating"
               :aria-label="`${address.name} 수정`"
-              @click="openEdit(address)"
+              @click="openForm(address)"
             >
               수정
             </button>
             <button
               class="text-button"
-              type="button"
-              :disabled="address.isDefault || addressStore.isMutating"
+              :disabled="address.isDefault"
               :aria-label="`${address.name} 삭제`"
               @click="removing = address"
             >
@@ -167,136 +109,118 @@ async function remove() {
           </div>
         </article>
       </section>
-    </ContentState>
-
+      <div v-else class="ui-empty">
+        <MapPin :size="32" aria-hidden="true" />
+        <h2>등록된 배송지가 없어요.</h2>
+        <button class="button button-primary" @click="openForm()">첫 배송지 등록</button>
+      </div>
+    </DesignPreview>
     <p class="ui-muted" style="margin-top: 16px">
-      기본 배송지는 다른 주소를 기본으로 지정한 뒤 삭제할 수 있어요. 사용 중인 배송지는 먼저 구독
-      설정을 변경해 주세요.
+      기본 배송지는 다른 주소를 기본으로 지정한 뒤 삭제할 수 있어요.
     </p>
-
     <Dialog
-      :visible="isEditing"
+      v-model:visible="isOpen"
       modal
       :draggable="false"
-      :closable="!addressStore.isMutating"
-      :close-on-escape="!addressStore.isMutating"
-      header="배송지 수정"
+      :header="editingId ? '배송지 수정' : '배송지 등록'"
       :pt="dialogPt"
-      @update:visible="closeEdit"
     >
-      <form class="ui-stack" @submit.prevent="saveEdit">
-        <p v-if="mutationMessage" role="alert">{{ mutationMessage }}</p>
-        <fieldset class="ui-stack address-fields" :disabled="addressStore.isMutating">
-          <div class="ui-grid">
-            <label class="ui-field"
-              >배송지 이름<input v-model.trim="form.name" required maxlength="50"
-            /></label>
-            <label class="ui-field"
-              >받는 분<input v-model.trim="form.recipientName" required maxlength="50"
-            /></label>
-          </div>
+      <form class="ui-stack" @submit.prevent="save">
+        <div class="ui-grid">
           <label class="ui-field"
-            >연락처<input v-model.trim="form.recipientPhone" type="tel" required maxlength="20"
-          /></label>
-          <label class="ui-field"
-            >우편번호<input v-model.trim="form.postalCode" required maxlength="10"
-          /></label>
-          <label class="ui-field"
-            >도로명 주소<textarea
-              v-model.trim="form.addressLine1"
+            >배송지 이름<input
+              v-model.trim="form.name"
               required
-              maxlength="255"
-              rows="3"
-            />
-          </label>
-          <label class="ui-field"
-            >상세 주소 (선택)<input v-model.trim="form.addressLine2" maxlength="255"
+              maxlength="50"
+              placeholder="예: 집"
           /></label>
           <label class="ui-field"
-            >수령 방식<select v-model="form.deliveryMethod">
-              <option value="DOORSTEP">문 앞 비대면 배송</option>
-              <option value="DIRECT">직접 전달</option>
-              <option value="OTHER">기타 요청</option>
-            </select></label
-          >
-          <label v-if="form.deliveryMethod === 'OTHER'" class="ui-field"
-            >기타 배송 요청<textarea
-              v-model.trim="form.otherDeliveryRequest"
+            >받는 분<input
+              v-model.trim="form.recipient"
               required
-              maxlength="255"
-              rows="2"
-            />
-          </label>
-          <label class="ui-field"
-            >공동현관 비밀번호 변경 (선택)<input
-              v-model.trim="form.entrancePassword"
-              :disabled="form.clearEntrancePassword"
-              maxlength="100"
-              type="password"
-              autocomplete="new-password"
-            />
-          </label>
-          <label class="ui-check"
-            ><input v-model="form.clearEntrancePassword" type="checkbox" />기존 공동현관 비밀번호
-            삭제</label
-          >
-          <div class="ui-actions ui-actions--end">
-            <button
-              class="button button-secondary"
-              type="button"
-              :disabled="addressStore.isMutating"
-              @click="closeEdit"
-            >
-              취소
-            </button>
-            <button class="button button-primary" type="submit" :disabled="addressStore.isMutating">
-              {{ addressStore.isMutating ? '저장 중...' : '저장' }}
-            </button>
-          </div>
-        </fieldset>
+              maxlength="50"
+              autocomplete="name"
+          /></label>
+        </div>
+        <label class="ui-field"
+          >연락처<input
+            v-model.trim="form.phone"
+            type="tel"
+            required
+            maxlength="20"
+            autocomplete="tel"
+        /></label>
+        <label class="ui-field"
+          >우편번호<input
+            v-model.trim="form.postalCode"
+            required
+            maxlength="10"
+            autocomplete="postal-code"
+            inputmode="numeric"
+          />
+        </label>
+        <label class="ui-field"
+          >도로명 주소<textarea
+            v-model.trim="form.address"
+            required
+            maxlength="255"
+            rows="3"
+            autocomplete="street-address"
+          />
+        </label>
+        <label class="ui-field"
+          >상세 주소 (선택)<input
+            v-model.trim="form.addressLine2"
+            maxlength="255"
+            autocomplete="address-line2"
+        /></label>
+        <label class="ui-field"
+          >수령 방식<select v-model="form.deliveryMethod">
+            <option>문 앞 비대면 배송</option>
+            <option>직접 전달</option>
+          </select></label
+        >
+        <label class="ui-field"
+          >배송 요청사항 (선택)<textarea
+            v-model.trim="form.deliveryRequest"
+            maxlength="255"
+            rows="2"
+            placeholder="민감한 출입 비밀번호는 입력하지 마세요."
+          />
+        </label>
+        <label class="ui-check"
+          ><input
+            v-model="form.isDefault"
+            type="checkbox"
+            :disabled="
+              Boolean(editingId && appStore.addresses.find((a) => a.id === editingId)?.isDefault)
+            "
+          />기본 배송지로 사용</label
+        >
+        <p class="ui-muted">
+          선택 표시가 없는 입력란은 필수예요. 배송 가능 지역과 사용 중인 주소의 변경 제한은 서비스
+          연결 후 확인됩니다.
+        </p>
+        <div class="ui-actions">
+          <button class="button button-secondary" type="button" @click="isOpen = false">취소</button
+          ><button class="button button-primary" type="submit">화면에 반영</button>
+        </div>
       </form>
     </Dialog>
-
     <Dialog
       :visible="Boolean(removing)"
       modal
       :draggable="false"
-      :closable="!addressStore.isMutating"
-      :close-on-escape="!addressStore.isMutating"
       header="배송지를 삭제할까요?"
       :pt="dialogPt"
       @update:visible="removing = null"
     >
-      <p v-if="mutationMessage" role="alert">{{ mutationMessage }}</p>
-      <p>{{ removing?.name }} · {{ formatAddress(removing || {}) }}</p>
-      <p class="ui-muted">현재 구독이나 배송 예정 주문에서 사용 중인 배송지는 삭제할 수 없어요.</p>
-      <template #footer>
-        <button
-          class="button button-secondary"
-          type="button"
-          :disabled="addressStore.isMutating"
-          @click="removing = null"
-        >
-          취소
-        </button>
-        <button
-          class="button button-primary"
-          type="button"
-          :disabled="addressStore.isMutating"
-          @click="remove"
-        >
-          {{ addressStore.isMutating ? '삭제 중...' : '삭제' }}
-        </button>
-      </template>
+      <p>{{ removing?.name }} · {{ removing?.address }}</p>
+      <p class="ui-muted">현재 예시 목록에서만 삭제됩니다.</p>
+      <template #footer
+        ><button class="button button-secondary" @click="removing = null">취소</button
+        ><button class="button button-primary" @click="remove">삭제</button></template
+      >
     </Dialog>
   </div>
 </template>
-
-<style scoped>
-.address-fields {
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-</style>

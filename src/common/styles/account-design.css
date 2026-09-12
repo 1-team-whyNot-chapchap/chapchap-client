@@ -102,7 +102,7 @@
 }
 .account-design :focus-visible {
   outline: 3px solid var(--color-primary-pressed);
-  outline-offset: -3px;
+  outline-offset: 4px;
 }
 @media (max-width: 760px) {
   .surface {

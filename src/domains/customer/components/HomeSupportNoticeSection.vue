@@ -3,11 +3,32 @@ import { ArrowRight, Clock3 } from 'lucide-vue-next'
 
 // defineEmits는 이 컴포넌트가 직접 화면을 바꾸지 않고, 상위 페이지에 이동을 요청하도록 만드는 Vue 문법입니다.
 const emit = defineEmits(['navigate'])
+
+const notices = [
+  {
+    id: 'delivery-guide',
+    label: '배송 안내',
+    title: '8월 배송 일정과 주문 마감 시간을 안내드립니다.',
+    date: '2026.08.05',
+  },
+  {
+    id: 'menu-update',
+    label: '메뉴 안내',
+    title: '이번 주 메뉴 구성이 업데이트되었습니다.',
+    date: '2026.08.04',
+  },
+  {
+    id: 'service-guide',
+    label: '서비스 안내',
+    title: '배송지와 메뉴 변경 가능 시간을 확인해 주세요.',
+    date: '2026.08.01',
+  },
+]
 </script>
 
 <template>
-  <!-- section은 메인 안에서 고객센터와 내 알림을 독립된 정보 영역으로 구분하는 시맨틱 태그입니다. -->
-  <section class="home-support-notice" aria-label="고객센터와 내 알림">
+  <!-- section은 메인 안에서 고객센터와 공지사항을 독립된 정보 영역으로 구분하는 시맨틱 태그입니다. -->
+  <section class="home-support-notice" aria-label="고객센터와 공지사항">
     <article class="home-support-notice__support">
       <h2>궁금한 점이 있으신가요?</h2>
       <p class="home-support-notice__description">
@@ -15,7 +36,7 @@ const emit = defineEmits(['navigate'])
       </p>
       <p class="home-support-notice__hours">
         <Clock3 :size="16" aria-hidden="true" />
-        운영 시간은 고객지원에서 확인해 주세요.
+        평일 10:00~17:00 · 주말 및 공휴일 휴무
       </p>
       <div class="home-support-notice__actions">
         <button class="button button-primary" type="button" @click="emit('navigate', 'wf-036')">
@@ -31,7 +52,7 @@ const emit = defineEmits(['navigate'])
     <article class="home-support-notice__notices">
       <header class="home-support-notice__heading">
         <div>
-          <h2>내 알림</h2>
+          <h2>공지사항</h2>
         </div>
         <button class="text-button" type="button" @click="emit('navigate', 'notifications')">
           전체 보기
@@ -39,9 +60,16 @@ const emit = defineEmits(['navigate'])
         </button>
       </header>
 
-      <p class="home-support-notice__description">
-        주문·배송 관련 안내는 내 알림에서 확인할 수 있어요.
-      </p>
+      <ul class="home-support-notice__list">
+        <li v-for="notice in notices" :key="notice.id">
+          <button type="button" @click="emit('navigate', 'notifications')">
+            <span class="home-support-notice__notice-label">{{ notice.label }}</span>
+            <strong>{{ notice.title }}</strong>
+            <!-- time은 날짜나 시간을 컴퓨터와 보조 기술이 명확히 인식하도록 나타내는 태그입니다. -->
+            <time>{{ notice.date }}</time>
+          </button>
+        </li>
+      </ul>
     </article>
   </section>
 </template>
@@ -95,7 +123,6 @@ const emit = defineEmits(['navigate'])
 }
 
 .home-support-notice__actions {
-  justify-content: flex-end;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -189,7 +216,6 @@ const emit = defineEmits(['navigate'])
   }
 
   .home-support-notice__actions {
-    justify-content: flex-end;
     display: grid;
     grid-template-columns: 1fr;
     gap: 8px;

@@ -108,7 +108,7 @@ function isCurrentItem(route) {
 .admin-navigation-group__trigger:focus-visible,
 .admin-navigation-group__items button:focus-visible {
   outline: 3px solid rgba(150, 167, 94, 0.45);
-  outline-offset: -3px;
+  outline-offset: 2px;
 }
 
 .admin-navigation-group__items {

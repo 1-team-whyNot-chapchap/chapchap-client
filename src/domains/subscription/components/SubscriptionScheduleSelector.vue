@@ -445,7 +445,7 @@ function formatDate(date) {
 .subscription-schedule__weekday:focus-visible,
 .subscription-schedule__calendar-days button:focus-visible {
   outline: 3px solid rgba(150, 167, 94, 0.5);
-  outline-offset: -3px;
+  outline-offset: 2px;
 }
 @media (max-width: 640px) {
   .subscription-schedule__detail dl {

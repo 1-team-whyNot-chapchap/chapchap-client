@@ -52,7 +52,7 @@ import LogoutButton from '../../auth/components/LogoutButton.vue'
 }
 .rider-navigation a:focus-visible {
   outline: 2px solid var(--color-primary-pressed);
-  outline-offset: -3px;
+  outline-offset: 3px;
 }
 @media (max-width: 480px) {
   .rider-navigation-user {
