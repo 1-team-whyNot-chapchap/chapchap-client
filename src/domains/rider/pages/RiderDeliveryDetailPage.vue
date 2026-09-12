@@ -51,6 +51,20 @@ const canComplete = computed(
       (delivery.value?.requestedHandoffType !== 'DIRECT' ||
         (contacted.value && contactedAt.value && contactResult.value.trim()))),
 )
+const completionRequirementMessage = computed(() => {
+  if (method.value === '직접 전달') return ''
+
+  const missing = []
+  if (!place.value.trim()) missing.push('보관 위치')
+  if (!photo.value) missing.push('완료 사진')
+  if (delivery.value?.requestedHandoffType === 'DIRECT') {
+    if (!contactedAt.value) missing.push('연락 시도 시각')
+    if (!contactResult.value.trim()) missing.push('연락 결과')
+    if (!contacted.value) missing.push('연락 시도 확인')
+  }
+
+  return missing.length ? `완료 반영을 위해 ${missing.join(', ')}을 입력해 주세요.` : ''
+})
 
 async function load() {
   if (!route.query.assignmentId) {
@@ -267,7 +281,9 @@ onMounted(load)
             :disabled="submitting"
             @change="selectPhoto"
           />
-          <p v-if="photo" class="ui-muted">{{ photo.name }} · 업로드하지 않음</p>
+          <p v-if="photo" class="ui-muted">
+            {{ photo.name }} · 선택됨 (완료 반영 시 업로드됩니다.)
+          </p>
           <p v-if="photoError" class="ui-error" role="alert">{{ photoError }}</p>
           <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-field"
             >연락 시도 시각<input v-model="contactedAt" type="datetime-local" required
@@ -280,7 +296,9 @@ onMounted(load)
             없었어요.</label
           ></template
         >
-        <p class="ui-muted">실제 처리 시 사진·보관 위치·연락 결과를 서버에서 검증합니다.</p>
+        <p v-if="completionRequirementMessage" class="ui-muted">
+          {{ completionRequirementMessage }}
+        </p>
         <button class="button button-primary" type="submit" :disabled="!canComplete || submitting">
           완료 반영
         </button>
