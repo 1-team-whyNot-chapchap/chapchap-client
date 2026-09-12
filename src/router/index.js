@@ -67,7 +67,7 @@ const PaymentMethodListPage = () => import('../domains/customer/pages/PaymentMet
 const PaymentMethodRegistrationPage = () =>
   import('../domains/customer/pages/PaymentMethodRegistrationPage.vue')
 const PlanChangePage = () => import('../domains/subscription/pages/PlanChangePage.vue')
-const PlanDetailPage = () => import('../domains/product/pages/PlanDetailPage.vue')
+const PlanMenuListPage = () => import('../domains/product/pages/PlanMenuListPage.vue')
 const PlanPage = () => import('../domains/product/pages/PlanPage.vue')
 const RefundChatPage = () => import('../domains/customer/pages/RefundChatPage.vue')
 const RefundHistoryPage = () => import('../domains/customer/pages/RefundHistoryPage.vue')
@@ -159,7 +159,8 @@ const router = createRouter({
     },
     { path: '/menu', name: 'menu', component: MenuListPage },
     { path: '/plans', name: 'plans', component: PlanPage },
-    { path: '/plans/:planId', name: 'plan-detail', component: PlanDetailPage, props: true },
+    { path: '/plans/menus', name: 'plan-menus', component: PlanMenuListPage },
+    { path: '/plans/:planId', name: 'plan-detail', redirect: { name: 'plan-menus' } },
     ...authRoutes,
     { path: '/wf-008', name: 'wf-008', component: MenuListPage },
     { path: '/wf-009', name: 'wf-009', component: MenuDetailPage },

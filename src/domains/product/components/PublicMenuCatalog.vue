@@ -1,12 +1,25 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { ChevronRight } from 'lucide-vue-next'
 import { planApi } from '../../subscription/api/planApi.js'
 const props = defineProps({ compact: Boolean })
+const route = useRoute()
+const router = useRouter()
 const plans = ref([]),
   loading = ref(false),
   error = ref(''),
-  selected = ref(''),
   broken = ref(new Set())
+const selected = computed({
+  get: () =>
+    plans.value.some((plan) => plan.planId === route.query.filterPlanId)
+      ? route.query.filterPlanId
+      : '',
+  set: (value) =>
+    router.replace({
+      query: { ...route.query, filterPlanId: value || undefined },
+    }),
+})
 let version = 0
 const cards = computed(() =>
   plans.value
@@ -64,27 +77,36 @@ onUnmounted(() => {
       >
       <div class="menu-cards">
         <article v-for="menu in cards" :key="menu.key" class="ui-surface menu-card">
-          <img
-            v-if="menu.imageUrl && !broken.has(menu.key)"
-            class="menu-image"
-            :src="menu.imageUrl"
-            :alt="menu.name"
-            loading="lazy"
-            @error="markBroken(menu.key)"
-          />
-          <div class="ui-stack">
-            <p class="ui-muted">{{ menu.planName }} · {{ menu.menuSequence }}번 메뉴</p>
+          <div class="menu-photo">
+            <img
+              v-if="menu.imageUrl && !broken.has(menu.key)"
+              class="menu-image"
+              :src="menu.imageUrl"
+              :alt="menu.name"
+              loading="lazy"
+              @error="markBroken(menu.key)"
+            />
+            <span v-else>메뉴 이미지 준비 중</span>
+          </div>
+          <div class="menu-card__content">
+            <span class="menu-plan">{{ menu.planName }} 플랜</span>
             <h3>{{ menu.name }}</h3>
-            <p>{{ menu.description }}</p>
-            <p v-if="menu.nutritionInfo">{{ menu.nutritionInfo }}</p>
-            <details v-if="!compact">
-              <summary>메뉴 상세 정보</summary>
-              <p>알레르기: {{ menu.allergenInfo || '등록된 정보 없음' }}</p>
-              <p>원재료: {{ menu.ingredientInfo || '등록된 정보 없음' }}</p>
-            </details>
-            <RouterLink class="button button-secondary" :to="'/plans/' + menu.planId"
-              >플랜 상세</RouterLink
+            <RouterLink
+              class="button button-outline menu-detail-button"
+              :aria-label="`${menu.planName} ${menu.name} 메뉴 상세`"
+              :to="{
+                name: 'wf-009',
+                query: {
+                  planId: menu.planId,
+                  menuSequence: menu.menuSequence,
+                  from: 'catalog',
+                  filterPlanId: selected || undefined,
+                },
+              }"
             >
+              <span>메뉴 상세</span>
+              <ChevronRight :size="18" aria-hidden="true" />
+            </RouterLink>
           </div>
         </article>
       </div>
@@ -102,27 +124,66 @@ onUnmounted(() => {
   gap: 20px;
 }
 .menu-card {
+  color: inherit;
+  text-decoration: none;
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
-.menu-card > .ui-stack {
-  padding: 24px;
-  flex: 1;
+.menu-detail-button:focus-visible {
+  outline: 3px solid var(--color-primary-pressed);
+  outline-offset: 2px;
 }
-.menu-card .button {
+.menu-photo {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  background: var(--color-primary-soft);
+  color: var(--color-text-muted);
+  font-size: var(--font-caption);
+}
+.menu-card__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+}
+.menu-detail-button {
+  width: 100%;
+  min-width: 0;
   margin-top: auto;
-  align-self: flex-end;
+  white-space: normal;
+  text-decoration: none;
+}
+.menu-plan {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-pressed);
+  font-size: var(--font-caption);
+  font-weight: var(--font-weight-bold);
+}
+.menu-card h3 {
+  margin: 0;
+  font-size: var(--font-item-title);
+  line-height: var(--line-height-compact);
 }
 .menu-card p,
 .menu-card h3 {
   overflow-wrap: anywhere;
 }
 .menu-image {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  aspect-ratio: 4/3;
-  object-fit: cover;
+  height: 100%;
+  object-fit: contain;
 }
 summary {
   min-height: 44px;

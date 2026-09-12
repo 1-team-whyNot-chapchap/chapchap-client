@@ -65,6 +65,7 @@ const activeNavigation = computed(() => {
   if (
     [
       'plans',
+      'plan-menus',
       'plan-detail',
       'wf-013',
       'wf-014',
