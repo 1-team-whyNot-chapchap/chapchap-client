@@ -158,7 +158,7 @@ const router = createRouter({
     { path: '/menu', name: 'menu', component: MenuListPage },
     { path: '/plans', name: 'plans', component: PlanPage },
     { path: '/plans/menus', name: 'plan-menus', component: PlanMenuListPage },
-    { path: '/plans/:planId', name: 'plan-detail', redirect: { name: 'plan-menus' } },
+    { path: '/plans/:planId', name: 'plan-detail', redirect: { name: 'plan-menus', params: {} } },
     ...authRoutes,
     { path: '/wf-008', name: 'wf-008', component: MenuListPage },
     { path: '/wf-009', name: 'wf-009', component: MenuDetailPage },
