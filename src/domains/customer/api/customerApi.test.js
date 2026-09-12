@@ -53,3 +53,16 @@ test('support routes require current customer or rider account', async () => {
   }
   assert.equal(requiredRoles('/help/faq'), null)
 })
+
+test('summary uses assigned administrator endpoint and validates identity', async () => {
+  let url
+  const api = createCustomerApi({
+    get: async (value) => {
+      url = value
+      return { data: { code: '00', data: { status: 'PENDING' } } }
+    },
+  })
+  assert.equal((await api.consultationSummary('501')).status, 'PENDING')
+  assert.equal(url, '/api/customer/admin/consultations/501/summary')
+  assert.throws(() => api.consultationSummary('../other'))
+})

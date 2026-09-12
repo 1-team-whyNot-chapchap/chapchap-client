@@ -10,7 +10,7 @@ const emit = defineEmits(['navigate'])
   <section class="home-subscription-cta">
     <div>
       <h2>나에게 맞는 플랜으로<br />식사 루틴을 시작해 보세요.</h2>
-      <p>처음 시작한다면 추천 영양식부터 확인할 수 있어요.</p>
+      <p>플랜별 메뉴와 구성을 비교해 보세요.</p>
     </div>
 
     <div class="home-subscription-cta__actions">

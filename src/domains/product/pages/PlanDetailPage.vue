@@ -1,9 +1,9 @@
 <script setup>
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CalendarCheck, ChevronRight, Info, RefreshCcw } from 'lucide-vue-next'
-import { planDetails } from '../../../common/constants/prototypeData'
-import { useAppStore } from '../../../stores/useAppStore'
+import { useRouter } from 'vue-router'
+import { usePlanStore } from '../../subscription/stores/usePlanStore.js'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 
 const props = defineProps({
@@ -14,12 +14,51 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['navigate'])
-const appStore = useAppStore()
-const plan = computed(() => planDetails[props.planId])
+const router = useRouter()
+const planStore = usePlanStore()
+const unavailableImages = ref(new Set())
+const plan = computed(() => planStore.planById(props.planId))
+const status = computed(() => planStore.detailStatuses[props.planId] || 'idle')
+const error = computed(() => planStore.detailErrors[props.planId])
+const isMissing = computed(
+  () =>
+    [400, 404].includes(error.value?.status) ||
+    ['COMMON_001', 'SUBSCRIPTION_001'].includes(error.value?.code),
+)
+const benefits = [
+  '플랜별 고정 메뉴를 1~31번 순서로 확인할 수 있어요.',
+  '월요일~토요일 중 원하는 반복 배송 요일을 선택할 수 있어요.',
+  '배송비와 최종 결제금액은 구독 신청 전에 확인할 수 있어요.',
+]
+
+watch(
+  () => props.planId,
+  (planId) => {
+    unavailableImages.value = new Set()
+    planStore.fetchPlan(planId)
+  },
+  { immediate: true },
+)
 
 function choosePlan() {
-  appStore.beginSubscriptionApplication(plan.value.id)
-  emit('navigate', 'wf-013')
+  if (!plan.value) return
+  router.push({ name: 'wf-013', query: { planId: plan.value.planId } })
+}
+
+function retryPlan() {
+  planStore.fetchPlan(props.planId, true)
+}
+
+function formatUnitPrice(unitPrice) {
+  return `${Number(unitPrice).toLocaleString('ko-KR')}원 / 1식`
+}
+
+function markImageUnavailable(menuSequence) {
+  unavailableImages.value = new Set([...unavailableImages.value, menuSequence])
+}
+
+function hasImage(menu) {
+  return Boolean(menu.imageUrl) && !unavailableImages.value.has(menu.menuSequence)
 }
 </script>
 
@@ -28,60 +67,135 @@ function choosePlan() {
     <DesignPreview title="구독">
       <PageBackButton label="플랜 목록으로" @back="emit('navigate', 'plans')" />
 
-      <section class="plan-detail-hero">
-        <div>
-          <h1>{{ plan.name }}</h1>
-          <p>{{ plan.description }}</p>
-          <div class="plan-detail-price">
-            <span>정기 구독 가격</span>
-            <strong>가격 미정</strong>
-            <small>배송비 미정 · 결제 전 서버 견적 기준</small>
-          </div>
-          <button class="button button-primary" type="button" @click="choosePlan">
-            {{ plan.name }} 선택
-            <ChevronRight :size="18" aria-hidden="true" />
+      <section
+        v-if="status === 'loading' || status === 'idle'"
+        class="ui-empty plan-detail-state"
+        aria-busy="true"
+      >
+        <h1>플랜 정보를 불러오고 있어요.</h1>
+        <p class="ui-muted">잠시만 기다려 주세요.</p>
+      </section>
+
+      <section v-else-if="status === 'error'" class="ui-empty plan-detail-state" role="alert">
+        <h1>{{ isMissing ? '플랜을 찾을 수 없어요.' : '플랜 정보를 불러오지 못했어요.' }}</h1>
+        <p class="ui-muted">
+          {{
+            isMissing
+              ? '판매가 종료됐거나 주소가 변경된 플랜이에요.'
+              : '잠시 후 다시 시도해 주세요.'
+          }}
+        </p>
+        <div class="plan-detail-state__actions">
+          <button
+            v-if="!isMissing"
+            class="button button-secondary"
+            type="button"
+            @click="retryPlan"
+          >
+            다시 시도
+          </button>
+          <button class="button button-primary" type="button" @click="emit('navigate', 'plans')">
+            플랜 목록으로
           </button>
         </div>
-        <section class="ui-surface ui-stack">
-          <h2>플랜에 포함된 메뉴</h2>
-          <p>날짜 순번에 맞춰 제공되는 메뉴를 이곳에서 확인할 수 있어요.</p>
-          <div class="ui-empty">
-            <CalendarCheck :size="32" aria-hidden="true" />
-            <h3>메뉴 구성을 준비하고 있어요.</h3>
-            <p class="ui-muted">영양·알레르기·원재료 정보는 메뉴와 함께 제공됩니다.</p>
+      </section>
+
+      <template v-else-if="plan">
+        <section class="plan-detail-hero">
+          <div>
+            <h1>{{ plan.name }}</h1>
+            <p>{{ plan.description }}</p>
+            <div class="plan-detail-price">
+              <span>도시락 단가</span>
+              <strong>{{ formatUnitPrice(plan.unitPrice) }}</strong>
+              <small>배송비와 최종 결제금액은 구독 신청 전에 확인합니다.</small>
+            </div>
+            <button class="button button-primary" type="button" @click="choosePlan">
+              {{ plan.name }} 선택
+              <ChevronRight :size="18" aria-hidden="true" />
+            </button>
+          </div>
+          <section class="ui-surface ui-stack">
+            <h2>플랜에 포함된 메뉴</h2>
+            <p>달력 일자와 같은 순번의 고정 메뉴가 배송됩니다.</p>
+            <div class="ui-empty">
+              <CalendarCheck :size="32" aria-hidden="true" />
+              <h3>고정 메뉴 {{ plan.menus.length }}개</h3>
+              <p class="ui-muted">메뉴는 선택하거나 수량을 변경할 수 없는 안내 정보입니다.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="plan-detail-grid">
+          <article>
+            <CalendarCheck :size="23" aria-hidden="true" />
+            <strong>1~31번 고정 메뉴</strong>
+            <p>각 배송일의 일자와 같은 메뉴 순번을 확인할 수 있어요.</p>
+          </article>
+          <article>
+            <RefreshCcw :size="23" aria-hidden="true" />
+            <strong>읽기 전용 안내</strong>
+            <p>고객이 메뉴를 직접 선택하거나 변경하지 않아요.</p>
+          </article>
+        </section>
+
+        <section class="plan-menu-section">
+          <div>
+            <h2>1~31번 고정 메뉴</h2>
+            <p>메뉴 구성과 알레르기·영양·원재료 정보를 순서대로 확인해 주세요.</p>
+          </div>
+          <div class="catalog-menu-grid">
+            <article v-for="menu in plan.menus" :key="menu.menuSequence" class="catalog-menu-card">
+              <img
+                v-if="hasImage(menu)"
+                class="catalog-menu-card__image"
+                :src="menu.imageUrl"
+                :alt="`${menu.name} 메뉴`"
+                @error="markImageUnavailable(menu.menuSequence)"
+              />
+              <div v-else class="photo-placeholder">메뉴 이미지 준비 중</div>
+              <div class="catalog-menu-card__body">
+                <small>{{ menu.menuSequence }}번째 메뉴</small>
+                <strong>{{ menu.name }}</strong>
+                <span>{{ menu.description }}</span>
+                <dl class="menu-facts">
+                  <div>
+                    <dt>알레르기</dt>
+                    <dd>{{ menu.allergenInfo || '정보 없음' }}</dd>
+                  </div>
+                  <div>
+                    <dt>영양</dt>
+                    <dd>{{ menu.nutritionInfo || '정보 없음' }}</dd>
+                  </div>
+                  <div>
+                    <dt>원재료</dt>
+                    <dd>{{ menu.ingredientInfo || '정보 없음' }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </article>
           </div>
         </section>
-      </section>
 
-      <section class="plan-detail-grid">
-        <article>
-          <CalendarCheck :size="23" aria-hidden="true" />
-          <strong>{{ plan.cycle }}</strong>
-          <p>{{ plan.minimum }}</p>
-        </article>
-        <article>
-          <RefreshCcw :size="23" aria-hidden="true" />
-          <strong>다음 결제부터 변경</strong>
-          <p>현재 이용 기간과 확정된 회차는 유지합니다.</p>
-        </article>
-      </section>
+        <section class="plan-benefit-section">
+          <div>
+            <h2>플랜에 포함되는 기능</h2>
+          </div>
+          <ul>
+            <li v-for="benefit in benefits" :key="benefit">{{ benefit }}</li>
+          </ul>
+        </section>
 
-      <section class="plan-benefit-section">
-        <div>
-          <h2>플랜에 포함되는 기능</h2>
-        </div>
-        <ul>
-          <li v-for="benefit in plan.benefits" :key="benefit">{{ benefit }}</li>
-        </ul>
-      </section>
-
-      <aside class="notice-box notice-box--info">
-        <Info :size="20" aria-hidden="true" />
-        <div>
-          <strong>가격과 배송 가능 여부</strong>
-          <p>플랜 가격·배송비·주소별 배송 가능 여부는 신청 과정에서 서버 응답으로 확정합니다.</p>
-        </div>
-      </aside>
+        <aside class="notice-box notice-box--info">
+          <Info :size="20" aria-hidden="true" />
+          <div>
+            <strong>가격과 배송 가능 여부</strong>
+            <p>
+              배송비·최종 결제금액·주소별 배송 가능 여부는 신청 과정의 서버 응답으로 확정합니다.
+            </p>
+          </div>
+        </aside>
+      </template>
     </DesignPreview>
   </div>
 </template>
@@ -108,7 +222,7 @@ function choosePlan() {
 }
 .catalog-search input:focus-visible {
   outline: 3px solid var(--color-primary-hover);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 .catalog-menu-grid {
   display: grid;
@@ -116,10 +230,19 @@ function choosePlan() {
   gap: 18px;
   margin-top: 34px;
 }
+
+.plan-menu-section {
+  margin-top: 60px;
+}
+
+.plan-menu-section > div:first-child p {
+  margin-top: 8px;
+}
+
 .catalog-menu-card {
   position: relative;
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) auto;
+  grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
   gap: 17px;
   overflow: hidden;
@@ -129,6 +252,13 @@ function choosePlan() {
   background: var(--color-surface);
   color: var(--color-text);
   text-align: left;
+}
+
+.catalog-menu-card__image {
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  object-fit: cover;
 }
 .catalog-menu-card.is-disabled {
   opacity: 0.62;
@@ -220,6 +350,29 @@ function choosePlan() {
 .menu-facts dd {
   font-weight: 700;
 }
+
+.catalog-menu-card .menu-facts {
+  margin: 8px 0 0;
+}
+
+.catalog-menu-card .menu-facts > div {
+  grid-template-columns: 70px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.plan-detail-state {
+  min-height: 360px;
+  margin-top: 24px;
+}
+
+.plan-detail-state__actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
 @media (max-width: 760px) {
   .catalog-menu-grid,
   .menu-detail-hero,
@@ -229,6 +382,9 @@ function choosePlan() {
   .catalog-menu-card {
     grid-template-columns: 110px minmax(0, 1fr);
     padding-right: 14px;
+  }
+  .catalog-menu-card__image {
+    min-height: 260px;
   }
   .catalog-menu-card > svg {
     display: none;

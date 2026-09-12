@@ -1,219 +1,354 @@
 <script setup>
-import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { computed, ref } from 'vue'
-import { ChevronLeft, Minus, Plus } from 'lucide-vue-next'
-import { useAppStore } from '../../../stores/useAppStore'
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { Minus, Plus } from 'lucide-vue-next'
+import {
+  DELIVERY_TIME_SLOTS,
+  DELIVERY_WEEKDAYS,
+  DELIVERY_WEEKDAY_LABELS,
+} from '../firstSubscriptionForm.js'
+import { formatSubscriptionAddress } from '../currentSubscriptionDisplay.js'
+import { createSettingChangeRequest } from '../settingChangeForm.js'
+import { useAddressStore } from '../stores/useAddressStore.js'
+import { useCurrentSubscriptionStore } from '../stores/useCurrentSubscriptionStore.js'
+import { usePlanStore } from '../stores/usePlanStore.js'
+import { useSettingChangeStore } from '../stores/useSettingChangeStore.js'
 
-const emit = defineEmits(['navigate'])
-const appStore = useAppStore()
-const draftPlanId = ref(appStore.currentSubscription.planId)
-const draftRules = ref(appStore.currentSubscription.deliveryRules.map((rule) => ({ ...rule })))
-const hasChanges = computed(
+const router = useRouter(),
+  addressStore = useAddressStore(),
+  currentStore = useCurrentSubscriptionStore()
+const planStore = usePlanStore(),
+  changeStore = useSettingChangeStore()
+const subscription = computed(() => currentStore.subscription)
+const addresses = computed(() => addressStore.addresses)
+const errorMessage = computed(
+  () => changeStore.error?.serverMessage || changeStore.error?.message || '',
+)
+const canEdit = computed(
   () =>
-    JSON.stringify({ planId: draftPlanId.value, rules: draftRules.value }) !==
-    JSON.stringify({
-      planId: appStore.currentSubscription.planId,
-      rules: appStore.currentSubscription.deliveryRules,
-    }),
+    currentStore.status === 'success' && subscription.value?.subscriptionStatus === 'IN_PROGRESS',
 )
 
-function changePersonCount(rule, change) {
-  rule.personCount = Math.max(1, Math.min(6, rule.personCount + change))
+async function initialize() {
+  await Promise.all([
+    currentStore.fetchCurrentSubscription(true),
+    addressStore.fetchAddresses(true),
+    planStore.fetchPlans(),
+  ])
+  if (subscription.value && !changeStore.deliveryConditions.length)
+    changeStore.initialize(subscription.value)
 }
-function reviewChanges() {
-  appStore.prepareSubscriptionSettingsChange({
-    planId: draftPlanId.value,
-    deliveryRules: draftRules.value,
-  })
-  emit('navigate', 'wf-025')
+onMounted(initialize)
+function toggleWeekday(weekday) {
+  const selected = changeStore.deliveryConditions.map((condition) => condition.weekday)
+  changeStore.setDeliveryWeekdays(
+    selected.includes(weekday)
+      ? selected.filter((value) => value !== weekday)
+      : DELIVERY_WEEKDAYS.filter((value) => [...selected, weekday].includes(value)),
+  )
+}
+function changeQuantity(weekday, offset) {
+  const condition = changeStore.deliveryConditions.find((item) => item.weekday === weekday)
+  if (condition)
+    changeStore.updateDeliveryCondition(weekday, {
+      mealQuantity: Math.min(6, Math.max(1, condition.mealQuantity + offset)),
+    })
+}
+function requestOrMessage() {
+  try {
+    return createSettingChangeRequest(changeStore.planId, changeStore.deliveryConditions)
+  } catch (error) {
+    changeStore.error = error
+    return null
+  }
+}
+async function preview() {
+  const request = requestOrMessage()
+  if (request && (await changeStore.requestPreview(request))) router.push({ name: 'wf-025' })
+}
+function retry() {
+  changeStore.$reset()
+  initialize()
 }
 </script>
 
 <template>
-  <div class="page subscription-settings-page workspace-ui design-review-page">
-    <DesignPreview title="구독">
-      <button class="back-button" type="button" @click="emit('navigate', 'wf-021')">
-        <ChevronLeft :size="18" aria-hidden="true" />구독 상세로
+  <section class="workspace-ui setting-change-page">
+    <header class="ui-heading">
+      <div>
+        <h1>구독 설정 변경</h1>
+        <p>플랜과 요일별 배송 조건을 함께 변경하고, 서버 계산 결과를 확인해 주세요.</p>
+      </div>
+    </header>
+    <section
+      v-if="['idle', 'loading'].includes(currentStore.status)"
+      class="ui-empty"
+      aria-busy="true"
+    >
+      <h2>현재 구독을 불러오고 있어요.</h2>
+    </section>
+    <section v-else-if="currentStore.status === 'error'" class="ui-empty" role="alert">
+      <h2>현재 구독을 불러오지 못했어요.</h2>
+      <p>{{ currentStore.error?.serverMessage || currentStore.error?.message }}</p>
+      <button class="button button-secondary" type="button" @click="retry">다시 시도</button>
+    </section>
+    <section v-else-if="!subscription" class="ui-empty">
+      <h2>변경할 구독이 없어요.</h2>
+      <button class="button button-primary" type="button" @click="router.push({ name: 'plans' })">
+        플랜 보러 가기
       </button>
-      <section class="page-intro">
-        <h1>구독 설정을<br />변경하세요.</h1>
-        <p>변경할 조건을 비교해 보세요. 실제 적용은 견적 서비스 연결 후 가능합니다.</p>
-      </section>
-      <section class="settings-card">
+    </section>
+    <section v-else-if="!canEdit" class="ui-empty" role="alert">
+      <h2>지금은 구독 설정을 변경할 수 없어요.</h2>
+      <p>이용 중인 구독만 설정 변경할 수 있습니다.</p>
+      <button
+        class="button button-secondary"
+        type="button"
+        @click="router.push({ name: 'subscription' })"
+      >
+        내 구독으로
+      </button>
+    </section>
+    <section
+      v-else-if="addressStore.listStatus === 'error' || planStore.listStatus === 'error'"
+      class="ui-empty"
+      role="alert"
+    >
+      <h2>설정에 필요한 정보를 불러오지 못했어요.</h2>
+      <p>
+        {{
+          addressStore.listError?.serverMessage ||
+          addressStore.listError?.message ||
+          planStore.listError?.serverMessage ||
+          planStore.listError?.message
+        }}
+      </p>
+      <button class="button button-secondary" type="button" @click="retry">다시 시도</button>
+    </section>
+    <template v-else>
+      <section class="setting-card">
+        <h2>플랜</h2>
         <label
-          >플랜<select v-model="draftPlanId">
-            <option value="healthy">건강식</option>
-            <option value="nutrition">영양식</option>
-            <option value="hearty">든든식</option>
+          >변경할 플랜<select
+            :value="changeStore.planId"
+            @change="changeStore.setPlan($event.target.value)"
+          >
+            <option v-for="plan in planStore.plans" :key="plan.planId" :value="plan.planId">
+              {{ plan.name }} · {{ Number(plan.unitPrice || 0).toLocaleString('ko-KR') }}원
+            </option>
           </select></label
         >
       </section>
-      <section class="rule-editor" aria-labelledby="rule-editor-title">
-        <div class="section-heading">
-          <div>
-            <h2 id="rule-editor-title">요일별 배송 설정</h2>
-            <p>인원, 시간, 배송지를 각각 설정할 수 있습니다.</p>
-          </div>
+      <section class="setting-card">
+        <h2>반복 배송 요일</h2>
+        <div class="weekday-picker" role="group" aria-label="반복 배송 요일">
+          <button
+            v-for="weekday in DELIVERY_WEEKDAYS"
+            :key="weekday"
+            class="weekday-button"
+            :class="{
+              'is-selected': changeStore.deliveryConditions.some(
+                (item) => item.weekday === weekday,
+              ),
+            }"
+            :aria-pressed="changeStore.deliveryConditions.some((item) => item.weekday === weekday)"
+            type="button"
+            @click="toggleWeekday(weekday)"
+          >
+            {{ DELIVERY_WEEKDAY_LABELS[weekday].replace('요일', '') }}
+          </button>
         </div>
-        <article v-for="rule in draftRules" :key="rule.id">
-          <header>
-            <h3>{{ rule.label }}</h3>
-          </header>
-          <div class="rule-fields">
-            <div>
-              <span>인원</span>
-              <div class="count-control">
-                <button
-                  type="button"
-                  :disabled="rule.personCount === 1"
-                  :aria-label="`${rule.label} 인원 줄이기`"
-                  @click="changePersonCount(rule, -1)"
-                >
-                  <Minus :size="16" aria-hidden="true" /></button
-                ><output>{{ rule.personCount }}명</output
-                ><button
-                  type="button"
-                  :disabled="rule.personCount === 6"
-                  :aria-label="`${rule.label} 인원 늘리기`"
-                  @click="changePersonCount(rule, 1)"
-                >
-                  <Plus :size="16" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-            <label
-              >배송 시간<select v-model="rule.deliveryTime">
-                <option>점심 · 11:00~13:00</option>
-                <option>저녁 · 17:00~19:00</option>
-              </select></label
-            ><label
-              >배송지<select v-model="rule.addressId">
-                <option v-for="address in appStore.addresses" :key="address.id" :value="address.id">
-                  {{ address.name }}
-                </option>
-              </select></label
-            >
-          </div>
-        </article>
       </section>
-      <div class="mobile-action-bar">
-        <div>
-          <span>변경 내용</span><strong>{{ hasChanges ? '확인 필요' : '변경 없음' }}</strong>
-        </div>
+      <section v-if="!addresses.length" class="ui-empty">
+        <h2>등록된 배송지가 없어요.</h2>
+        <p>설정 변경 전에 배송지를 하나 이상 등록해 주세요.</p>
         <button
           class="button button-primary"
           type="button"
-          :disabled="!hasChanges"
-          @click="reviewChanges"
+          @click="router.push({ name: 'wf-029' })"
         >
-          변경 내용 확인
+          배송지 등록
+        </button>
+      </section>
+      <section v-else class="setting-card">
+        <h2>요일별 배송 조건</h2>
+        <article
+          v-for="condition in changeStore.deliveryConditions"
+          :key="condition.weekday"
+          class="condition-card"
+        >
+          <h3>{{ DELIVERY_WEEKDAY_LABELS[condition.weekday] }}</h3>
+          <label
+            >배송지<select
+              :value="condition.addressId"
+              @change="
+                changeStore.updateDeliveryCondition(condition.weekday, {
+                  addressId: $event.target.value,
+                })
+              "
+            >
+              <option
+                v-for="address in addresses"
+                :key="address.addressId"
+                :value="address.addressId"
+              >
+                {{ address.name }}
+              </option>
+            </select></label
+          >
+          <p class="address-preview">
+            {{
+              formatSubscriptionAddress(
+                addresses.find((address) => address.addressId === condition.addressId),
+              )
+            }}
+          </p>
+          <label
+            >식사 수량<span class="quantity-control"
+              ><button
+                type="button"
+                :disabled="condition.mealQuantity <= 1"
+                @click="changeQuantity(condition.weekday, -1)"
+              >
+                <Minus :size="16" /></button
+              ><output>{{ condition.mealQuantity }}식</output
+              ><button
+                type="button"
+                :disabled="condition.mealQuantity >= 6"
+                @click="changeQuantity(condition.weekday, 1)"
+              >
+                <Plus :size="16" /></button></span></label
+          ><label
+            >배송 시간대<select
+              :value="condition.deliveryTimeSlot"
+              @change="
+                changeStore.updateDeliveryCondition(condition.weekday, {
+                  deliveryTimeSlot: $event.target.value,
+                })
+              "
+            >
+              <option v-for="slot in DELIVERY_TIME_SLOTS" :key="slot.value" :value="slot.value">
+                {{ slot.label }}
+              </option>
+            </select></label
+          >
+        </article>
+      </section>
+      <p v-if="errorMessage" class="setting-error" role="alert">{{ errorMessage }}</p>
+      <div class="ui-actions ui-actions--end">
+        <button
+          class="button button-primary"
+          type="button"
+          :disabled="!addresses.length || changeStore.previewStatus === 'loading'"
+          @click="preview"
+        >
+          {{ changeStore.previewStatus === 'loading' ? '계산 중…' : '변경 내용 확인' }}
         </button>
       </div>
-    </DesignPreview>
-  </div>
+    </template>
+  </section>
 </template>
 
 <style scoped>
-.subscription-settings-page {
-  max-width: 900px;
+.setting-change-page {
+  display: grid;
+  gap: 20px;
+  padding-block: 36px 64px;
 }
-.settings-card,
-.rule-editor {
-  margin-top: 30px;
-  padding: clamp(20px, 3vw, 28px);
+.setting-card {
+  display: grid;
+  gap: 16px;
+  padding: clamp(20px, 4vw, 30px);
   border: 1px solid var(--color-border);
   border-radius: 18px;
   background: var(--color-surface);
 }
-.settings-card label,
-.rule-fields label {
-  min-width: 0;
+.setting-card h2,
+.condition-card h3 {
+  margin: 0;
+}
+.setting-card label,
+.condition-card label {
   display: grid;
   gap: 8px;
-  color: var(--color-text);
+  color: var(--color-text-muted);
   font-size: var(--font-caption);
-  font-weight: 800;
+  font-weight: 700;
 }
-.settings-card select,
-.rule-fields select {
-  width: 100%;
-  min-width: 0;
-  min-height: 46px;
+.setting-card select,
+.condition-card select {
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: var(--color-surface);
+  background: var(--color-background);
   color: var(--color-text);
-  font: inherit;
 }
-.section-heading h2 {
-  margin: 0;
-  font-size: var(--font-section-title);
-}
-.section-heading p {
-  margin: 6px 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-caption);
-}
-.rule-editor article {
-  padding: 20px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-.rule-editor article:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-.rule-editor h3 {
-  margin: 0;
-  font-size: var(--font-item-title);
-}
-.rule-fields {
+.weekday-picker {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 15px;
-}
-.rule-fields > div {
-  min-width: 0;
-  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
-  font-size: var(--font-caption);
-  font-weight: 800;
 }
-.count-control {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 46px;
-  padding: 4px;
+.weekday-button {
+  min-height: 44px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
-}
-.count-control button {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: var(--color-surface-subtle);
-  color: var(--color-text);
-}
-.count-control button:disabled {
-  cursor: not-allowed;
-  color: var(--color-text-muted);
-}
-.count-control output {
-  font-size: var(--font-caption);
+  background: var(--color-surface);
   font-weight: 800;
 }
-@media (max-width: 650px) {
-  .rule-fields {
-    grid-template-columns: minmax(0, 1fr);
+.weekday-button.is-selected {
+  border-color: var(--color-primary-pressed);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-pressed);
+}
+.condition-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px 20px;
+  padding: 20px 0;
+  border-top: 1px solid var(--color-border);
+}
+.condition-card h3,
+.address-preview {
+  grid-column: 1 / -1;
+}
+.address-preview {
+  margin: -8px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-caption);
+}
+.quantity-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.quantity-control button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.quantity-control output {
+  min-width: 32px;
+  color: var(--color-text);
+  text-align: center;
+}
+.setting-error {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff0ed;
+  color: #9e3825;
+}
+@media (max-width: 540px) {
+  .weekday-picker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .settings-card,
-  .rule-editor {
-    margin-top: 24px;
+  .condition-card {
+    grid-template-columns: 1fr;
   }
 }
 </style>

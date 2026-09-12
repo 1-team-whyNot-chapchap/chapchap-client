@@ -255,7 +255,7 @@ function toggleDate(date) {
 .delivery-date-calendar__days button:focus-visible {
   border-color: var(--color-primary);
   outline: 3px solid rgba(150, 167, 94, 0.45);
-  outline-offset: 2px;
+  outline-offset: -3px;
 }
 
 .delivery-date-calendar__days button:disabled {

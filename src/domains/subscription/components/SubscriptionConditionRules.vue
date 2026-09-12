@@ -141,6 +141,11 @@ function updateRule(weekday, changes) {
   font: inherit;
 }
 
+.condition-rule-card select:focus-visible {
+  outline: 2px solid var(--color-primary-pressed);
+  outline-offset: -2px;
+}
+
 .count-control {
   display: inline-flex;
   align-items: center;

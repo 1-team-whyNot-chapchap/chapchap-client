@@ -1,3 +1,4 @@
+import { scrollBehavior } from './scrollBehavior.js'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { pageCatalog } from './pageCatalog'
 import { authSession } from '../common/api/http.js'
@@ -53,12 +54,10 @@ const FaqDesignPage = () => import('../domains/customer/pages/FaqDesignPage.vue'
 const CustomerSupportPage = () => import('../domains/customer/pages/CustomerSupportPage.vue')
 const ConsultationDesignPage = () => import('../domains/customer/pages/ConsultationDesignPage.vue')
 const DeliveryDetailPage = () => import('../domains/delivery/pages/DeliveryDetailPage.vue')
-const DeliveryEditPage = () => import('../domains/delivery/pages/DeliveryEditPage.vue')
 const DeliveryHistoryPage = () => import('../domains/delivery/pages/DeliveryHistoryPage.vue')
 const HomePage = () => import('../domains/customer/pages/HomePage.vue')
 const MenuDetailPage = () => import('../domains/product/pages/MenuDetailPage.vue')
 const MenuListPage = () => import('../domains/product/pages/MenuListPage.vue')
-const MenuBuilder = () => import('../domains/subscription/pages/MenuBuilder.vue')
 const MyPage = () => import('../domains/customer/pages/MyPage.vue')
 const NotificationPage = () => import('../domains/customer/pages/NotificationPage.vue')
 const PaymentDetailPage = () => import('../domains/customer/pages/PaymentDetailPage.vue')
@@ -66,7 +65,6 @@ const PaymentHistoryPage = () => import('../domains/customer/pages/PaymentHistor
 const PaymentMethodListPage = () => import('../domains/customer/pages/PaymentMethodListPage.vue')
 const PaymentMethodRegistrationPage = () =>
   import('../domains/customer/pages/PaymentMethodRegistrationPage.vue')
-const PlanChangePage = () => import('../domains/subscription/pages/PlanChangePage.vue')
 const PlanDetailPage = () => import('../domains/product/pages/PlanDetailPage.vue')
 const PlanPage = () => import('../domains/product/pages/PlanPage.vue')
 const RefundChatPage = () => import('../domains/customer/pages/RefundChatPage.vue')
@@ -107,8 +105,7 @@ const authRoutes = pageCatalog
   .map((page) => ({
     path: `/wf-${page.id}`,
     name: `wf-${page.id}`,
-    component: AuthPage,
-    props: { pageId: page.id },
+    redirect: ['003', '007'].includes(page.id) ? '/signup' : '/login',
     meta: { layout: 'minimal' },
   }))
 
@@ -126,6 +123,7 @@ const adminRoutes = pageCatalog
 // 별도 서버 설정이 없는 현재 디자인 프로토타입에서도 새로고침 시 화면을 안전하게 다시 찾습니다.
 // 예: #/plans 주소는 플랜 화면을 뜻합니다.
 const router = createRouter({
+  scrollBehavior,
   history: createWebHashHistory(),
   routes: [
     {
@@ -158,34 +156,11 @@ const router = createRouter({
       meta: { layout: 'minimal' },
     },
     { path: '/menu', name: 'menu', component: MenuListPage },
-    {
-      path: '/subscribe/menu',
-      name: 'subscribe-menu',
-      component: MenuBuilder,
-      meta: { layout: 'minimal' },
-    },
     { path: '/plans', name: 'plans', component: PlanPage },
+    { path: '/plans/:planId', name: 'plan-detail', component: PlanDetailPage, props: true },
     ...authRoutes,
     { path: '/wf-008', name: 'wf-008', component: MenuListPage },
     { path: '/wf-009', name: 'wf-009', component: MenuDetailPage },
-    {
-      path: '/wf-011',
-      name: 'wf-011',
-      component: PlanDetailPage,
-      props: { planId: 'healthy' },
-    },
-    {
-      path: '/wf-012',
-      name: 'wf-012',
-      component: PlanDetailPage,
-      props: { planId: 'nutrition' },
-    },
-    {
-      path: '/plans/hearty',
-      name: 'plan-hearty-detail',
-      component: PlanDetailPage,
-      props: { planId: 'hearty' },
-    },
     { path: '/subscription', name: 'subscription', component: SubscriptionPage },
     { path: '/subscription/list', name: 'subscription-list', component: SubscriptionListPage },
     { path: '/subscription/detail', name: 'wf-021', component: SubscriptionDetailPage },
@@ -194,11 +169,6 @@ const router = createRouter({
       path: '/subscription/rounds/detail',
       name: 'wf-023',
       component: SubscriptionRoundDetailPage,
-    },
-    {
-      path: '/subscription/change-plan',
-      name: 'wf-054',
-      component: PlanChangePage,
     },
     {
       path: '/subscription/cancel',
@@ -214,17 +184,6 @@ const router = createRouter({
       path: '/subscription/settings/confirm',
       name: 'wf-025',
       component: SubscriptionSettingsConfirmPage,
-    },
-    {
-      path: '/subscription/delivery/menu',
-      name: 'delivery-menu-edit',
-      component: MenuBuilder,
-      props: { mode: 'delivery' },
-    },
-    {
-      path: '/subscription/delivery/conditions',
-      name: 'delivery-conditions-edit',
-      component: DeliveryEditPage,
     },
     { path: '/mypage', name: 'mypage', component: MyPage },
     { path: '/mypage/notifications', name: 'notifications', component: NotificationPage },

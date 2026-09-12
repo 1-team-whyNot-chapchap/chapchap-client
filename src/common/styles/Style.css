@@ -7,7 +7,7 @@
   --color-background: #f7f5ef;
   --color-surface: #ffffff;
   --color-text: #30332d;
-  --color-text-muted: #747a70;
+  --color-text-muted: #656c60;
   --color-border: #e6e7e0;
   --color-success: #4f7d61;
   --color-success-soft: #edf6f0;
@@ -106,7 +106,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: 3px solid rgba(150, 167, 94, 0.45);
-  outline-offset: 2px;
+  outline-offset: -3px;
 }
 a {
   color: inherit;

@@ -30,7 +30,7 @@ onMounted(loadFaqs)
 
     <section class="page-intro">
       <h1>무엇을 도와드릴까요?</h1>
-      <p>자주 묻는 질문을 확인하거나 환불 상담 채팅으로 문의할 수 있어요.</p>
+      <p>자주 묻는 질문을 확인하거나 상담 채팅으로 문의할 수 있어요.</p>
     </section>
 
     <section class="support-grid">
@@ -118,6 +118,9 @@ onMounted(loadFaqs)
 
 .support-card .button {
   margin-top: 24px;
+  margin-left: auto;
+  display: flex;
+  width: fit-content;
 }
 
 .faq-list {
@@ -127,6 +130,11 @@ onMounted(loadFaqs)
 
 .faq-list > div {
   margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .faq-list article {
