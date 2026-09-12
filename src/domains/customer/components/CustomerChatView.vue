@@ -29,6 +29,12 @@ const emit = defineEmits([
   'update:draft',
   'update:messageDraft',
 ])
+function messageTime(message, index) {
+  const formatted = displayDateTime(message.createdAt)
+  const previous = props.messages[index - 1]
+  const sameDay = previous && String(message.createdAt).slice(0, 10) === String(previous.createdAt).slice(0, 10)
+  return sameDay ? formatted.replace(/^\d{4}\.\d{2}\.\d{2} /, '') : formatted
+}
 const states = {
   AI_HANDLING: 'AI 상담 중',
   WAITING_ADMIN: '상담사 연결 대기',
@@ -188,7 +194,7 @@ watch(
           role="log"
         >
           <li
-            v-for="message in messages"
+            v-for="(message, index) in messages"
             :key="message.messageId"
             class="chat-message"
             :class="{
@@ -206,7 +212,11 @@ watch(
                 ] || '상담'
               }}</span>
               <p class="chat-bubble">{{ message.content }}</p>
-              <time :datetime="message.createdAt">{{ displayDateTime(message.createdAt) }}</time>
+              <time
+                :datetime="message.createdAt"
+                :title="displayDateTime(message.createdAt)"
+                :aria-label="displayDateTime(message.createdAt)"
+              >{{ messageTime(message, index) }}</time>
             </div>
           </li>
         </ol>
@@ -461,7 +471,7 @@ watch(
 }
 .chat-bubble {
   color: #292d25;
-  font-weight: 500;
+  font-weight: 400;
   padding: 12px 16px;
   margin: 0;
   background: var(--color-surface-subtle);
