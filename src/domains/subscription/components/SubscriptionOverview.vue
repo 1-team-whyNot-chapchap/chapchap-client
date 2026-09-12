@@ -1,48 +1,23 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import http from '../../../common/api/http.js'
-import { createAccountDataApi } from '../api/accountDataApi.js'
+import {
+  deliveryTimeSlotLabel,
+  deliveryWeekdayLabel,
+  formatSubscriptionAddress,
+  subscriptionStatusLabel,
+} from '../currentSubscriptionDisplay.js'
+import { useCurrentSubscriptionStore } from '../stores/useCurrentSubscriptionStore.js'
+
 defineProps({ title: { type: String, default: '내 구독' }, changeNotice: Boolean })
-const api = createAccountDataApi(http)
-const subscription = ref(null),
-  loading = ref(false),
-  error = ref('')
-let generation = 0
-const states = {
-  AWAITING_CONFIRMATION: '결제 확인 중',
-  SCHEDULED: '시작 예정',
-  IN_PROGRESS: '이용 중',
-  CANCELLATION_SCHEDULED: '종료 예정',
-  PAYMENT_FAILED: '결제 확인 필요',
-  CANCELED_BEFORE_START: '시작 전 취소',
-  ENDED: '종료',
+const subscriptionStore = useCurrentSubscriptionStore()
+const subscription = computed(() => subscriptionStore.subscription)
+
+onMounted(() => subscriptionStore.fetchCurrentSubscription())
+
+function retry() {
+  subscriptionStore.fetchCurrentSubscription(true)
 }
-const weekdays = {
-  MONDAY: '월요일',
-  TUESDAY: '화요일',
-  WEDNESDAY: '수요일',
-  THURSDAY: '목요일',
-  FRIDAY: '금요일',
-  SATURDAY: '토요일',
-  SUNDAY: '일요일',
-}
-async function load() {
-  const id = ++generation
-  loading.value = true
-  error.value = ''
-  subscription.value = null
-  try {
-    const result = await api.subscription()
-    if (id === generation) subscription.value = result
-  } catch {
-    if (id === generation) error.value = '구독 정보를 불러오지 못했습니다. 다시 시도해 주세요.'
-  } finally {
-    if (id === generation) loading.value = false
-  }
-}
-onMounted(load)
-onUnmounted(() => generation++)
 </script>
 <template>
   <section class="workspace-ui subscription-overview">
@@ -53,10 +28,16 @@ onUnmounted(() => generation++)
       </div>
       <RouterLink class="button button-secondary" to="/plans">플랜 보기</RouterLink>
     </header>
-    <p v-if="loading" role="status">구독 정보를 불러오고 있어요.</p>
-    <div v-else-if="error" role="alert" class="ui-note">
-      <p>{{ error }}</p>
-      <button class="button button-secondary" @click="load">다시 시도</button>
+    <p v-if="['idle', 'loading'].includes(subscriptionStore.status)" role="status">
+      구독 정보를 불러오고 있어요.
+    </p>
+    <div v-else-if="subscriptionStore.status === 'error'" role="alert" class="ui-note">
+      <p>
+        {{
+          subscriptionStore.error?.message || '구독 정보를 불러오지 못했습니다. 다시 시도해 주세요.'
+        }}
+      </p>
+      <button class="button button-secondary" type="button" @click="retry">다시 시도</button>
     </div>
     <div v-else-if="!subscription" class="ui-empty">
       <h2>이용 중인 구독이 없어요.</h2>
@@ -67,7 +48,7 @@ onUnmounted(() => generation++)
         <div class="ui-row">
           <h2>{{ subscription.plan?.name || '현재 적용 중인 플랜 없음' }}</h2>
           <span class="mini-badge">{{
-            states[subscription.subscriptionStatus] || '상태 확인 필요'
+            subscriptionStatusLabel(subscription.subscriptionStatus)
           }}</span>
         </div>
         <p v-if="subscription.periodStartDate">
@@ -86,14 +67,12 @@ onUnmounted(() => generation++)
           class="ui-list-item"
         >
           <div>
-            <h3>{{ weekdays[rule.weekday] || rule.weekday }} · {{ rule.mealQuantity }}명</h3>
+            <h3>{{ deliveryWeekdayLabel(rule.weekday) }} · {{ rule.mealQuantity }}명</h3>
             <p>
-              {{
-                { LUNCH: '점심', DINNER: '저녁' }[rule.deliveryTimeSlot] || rule.deliveryTimeSlot
-              }}
+              {{ deliveryTimeSlotLabel(rule.deliveryTimeSlot) }}
               · {{ rule.address?.name }}
             </p>
-            <p>{{ rule.address?.addressLine1 }} {{ rule.address?.addressLine2 }}</p>
+            <p>{{ formatSubscriptionAddress(rule.address) }}</p>
           </div>
         </article>
       </section>
