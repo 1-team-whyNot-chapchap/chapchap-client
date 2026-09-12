@@ -1,141 +1,39 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-vue-next'
-import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { socialLoginUrl } from '../../../common/api/http.js'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { socialLoginUrl } from '../../../common/api/http.js'
 const route = useRoute()
+const emit = defineEmits(['navigate'])
+defineProps({ pageId: String })
+const selectedProvider = ref('')
+function resetProvider() {
+  selectedProvider.value = ''
+}
+onMounted(() => window.addEventListener('pageshow', resetProvider))
+onUnmounted(() => window.removeEventListener('pageshow', resetProvider))
 function startSocial(provider) {
   if (selectedProvider.value) return
   selectedProvider.value = provider
   window.location.assign(socialLoginUrl(provider))
 }
-
-const props = defineProps({
-  pageId: {
-    type: String,
-    required: true,
-  },
-})
-
-const emit = defineEmits(['navigate'])
-const showPassword = ref(false)
-const isSubmitted = ref(false)
-const selectedProvider = ref('')
-
-const pages = {
-  '002': {
-    title: '챱챱에 로그인해요.',
-    description: '매일의 식사, 챱챱과 가볍게 시작하세요.',
-    fields: [
-      { id: 'email', label: '이메일', type: 'email', autocomplete: 'email' },
-      { id: 'password', label: '비밀번호', type: 'password', autocomplete: 'current-password' },
-    ],
-    action: '로그인',
-    next: 'home',
-    helper: '계정이 없으신가요?',
-    helperAction: '회원가입',
-    helperTarget: 'signup',
-    social: true,
-  },
-  '003': {
-    title: '챱챱을 시작해요.',
-    description: '배송과 결제 안내를 받을 기본 정보를 입력해 주세요.',
-    fields: [
-      { id: 'name', label: '이름', type: 'text', autocomplete: 'name' },
-      { id: 'email', label: '이메일', type: 'email', autocomplete: 'email' },
-      { id: 'password', label: '비밀번호', type: 'password', autocomplete: 'new-password' },
-    ],
-    action: '회원가입',
-    next: 'wf-007',
-    helper: '이미 계정이 있으신가요?',
-    helperAction: '로그인',
-    helperTarget: 'login',
-  },
-  '004': {
-    title: '비밀번호를 다시 설정해요.',
-    description: '가입한 이메일로 재설정 안내를 보내드립니다.',
-    fields: [{ id: 'email', label: '이메일', type: 'email', autocomplete: 'email' }],
-    action: '재설정 메일 보내기',
-    next: 'wf-005',
-  },
-  '005': {
-    title: '새 비밀번호를 입력해요.',
-    description: '다른 서비스에서 사용하지 않는 비밀번호를 권장합니다.',
-    fields: [
-      { id: 'password', label: '새 비밀번호', type: 'password', autocomplete: 'new-password' },
-      {
-        id: 'password-confirm',
-        label: '새 비밀번호 확인',
-        type: 'password',
-        autocomplete: 'new-password',
-      },
-    ],
-    action: '비밀번호 변경',
-    next: 'login',
-  },
-  '006': {
-    title: '소셜 계정을 연결해요.',
-    description: '기존 챱챱 구독을 유지하면서 더 편하게 로그인할 수 있어요.',
-    fields: [{ id: 'email', label: '챱챱 가입 이메일', type: 'email', autocomplete: 'email' }],
-    action: '기존 계정 확인',
-    next: 'wf-007',
-    social: true,
-  },
-  '007': {
-    title: '가입 정보를 완성해요.',
-    description: '배송 안내에 필요한 정보만 추가로 확인합니다.',
-    fields: [
-      { id: 'name', label: '이름', type: 'text', autocomplete: 'name' },
-      { id: 'phone', label: '휴대폰 번호', type: 'tel', autocomplete: 'tel' },
-    ],
-    action: '가입 완료',
-    next: 'home',
-  },
-}
-
-// computed는 현재 pageId에 맞는 화면 설정을 자동으로 골라 줍니다.
-const page = computed(() => pages[props.pageId])
-
-function submitForm() {
-  isSubmitted.value = true
-}
-
-function continueAfterSubmit() {
-  emit('navigate', page.value.next)
-}
 </script>
-
 <template>
-  <div class="page auth-page design-review-page">
-    <component :is="pageId === '002' ? 'div' : DesignPreview" title="로그인" :allow-empty="false">
+  <div class="page auth-page">
+    <div>
       <button
         class="auth-brand"
         type="button"
         aria-label="챱챱 홈으로"
         @click="emit('navigate', 'home')"
       >
-        <img class="brand-mark" src="/images/chapchap-brand-logo.png" alt="" />
-        <span>챱챱</span>
+        <img class="brand-mark" src="/images/chapchap-brand-logo.png" alt="" /><span>챱챱</span>
       </button>
-
       <section class="auth-card">
         <div class="auth-card__intro">
-          <h1>{{ page.title }}</h1>
-          <p>{{ page.description }}</p>
+          <h1>챱챱에 로그인해요.</h1>
+          <p>매일의 식사, 챱챱과 가볍게 시작하세요.</p>
         </div>
-
-        <div v-if="isSubmitted" class="auth-result" role="status">
-          <span><ShieldCheck :size="30" aria-hidden="true" /></span>
-          <strong>예시 화면에서 요청을 확인했어요.</strong>
-          <p>실제 인증 결과는 서버 응답을 받은 뒤 다음 화면으로 이동해야 합니다.</p>
-          <button class="button button-primary" type="button" @click="continueAfterSubmit">
-            다음 화면 보기
-            <ArrowRight :size="18" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div v-else-if="pageId === '002'" class="social-entry">
+        <div class="social-entry">
           <p class="social-entry__caption">자주 쓰는 계정으로 간편하게</p>
           <div class="social-login-grid">
             <button
@@ -169,89 +67,10 @@ function continueAfterSubmit() {
             <RouterLink :to="{ name: 'rider-login' }">라이더 로그인</RouterLink>
           </div>
         </div>
-
-        <form v-else class="auth-form" @submit.prevent="submitForm">
-          <label v-for="field in page.fields" :key="field.id" class="form-field">
-            <span>{{ field.label }}</span>
-            <span class="password-input">
-              <input
-                :id="field.id"
-                :type="field.type === 'password' && showPassword ? 'text' : field.type"
-                :autocomplete="field.autocomplete"
-                required
-              />
-              <button
-                v-if="field.type === 'password'"
-                type="button"
-                :aria-label="showPassword ? '비밀번호 숨기기' : '비밀번호 보기'"
-                @click="showPassword = !showPassword"
-              >
-                <EyeOff v-if="showPassword" :size="18" aria-hidden="true" />
-                <Eye v-else :size="18" aria-hidden="true" />
-              </button>
-            </span>
-          </label>
-
-          <button
-            v-if="pageId === '002'"
-            class="auth-forgot-link"
-            type="button"
-            @click="emit('navigate', 'wf-004')"
-          >
-            비밀번호를 잊으셨나요?
-          </button>
-
-          <button class="button button-primary auth-primary-action" type="submit">
-            {{ page.action }}
-          </button>
-
-          <template v-if="page.social">
-            <div class="auth-divider"><span>또는</span></div>
-            <div class="social-login-grid">
-              <button
-                class="social-login-button social-login-button--google"
-                type="button"
-                aria-label="Google로 로그인"
-                @click="selectedProvider = 'Google'"
-              >
-                <img src="/images/social/google-signin-light.png" alt="" width="720" height="160" />
-              </button>
-              <button
-                class="social-login-button social-login-button--kakao"
-                type="button"
-                aria-label="카카오로 로그인"
-                @click="selectedProvider = '카카오'"
-              >
-                <img
-                  src="/images/social/kakao-login-ko-narrow.png"
-                  alt=""
-                  width="366"
-                  height="90"
-                />
-              </button>
-            </div>
-            <p v-if="selectedProvider" class="social-preview" role="status">
-              {{ selectedProvider }} 버튼을 선택했어요. 디자인 미리보기에서는 계정을 연결하지
-              않아요.
-            </p>
-          </template>
-        </form>
-
-        <p v-if="page.helper && pageId !== '002'" class="auth-helper">
-          {{ page.helper }}
-          <button type="button" @click="emit('navigate', page.helperTarget)">
-            {{ page.helperAction }}
-          </button>
-        </p>
-
-        <p v-if="pageId !== '002'" class="form-help">
-          디자인 미리보기 · 실제 계정은 연결되지 않아요.
-        </p>
       </section>
-    </component>
+    </div>
   </div>
 </template>
-
 <style scoped>
 .auth-page {
   max-width: 620px;

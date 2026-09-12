@@ -39,9 +39,25 @@ export function requiredRoles(path) {
 }
 
 export function createAccessGuard(session) {
+  let publicSessionChecked = false
   return async (to) => {
     const roles = requiredRoles(to.path)
-    if (!roles) return true
+    if (!roles) {
+      const authFlow =
+        to.path === '/signup' ||
+        to.path.startsWith('/signup/') ||
+        to.path.startsWith('/auth/') ||
+        to.path === '/admin/password/initial'
+      if (!publicSessionChecked && !authFlow) {
+        publicSessionChecked = true
+        try {
+          await session.ensureSession()
+        } catch {
+          /* Public pages remain accessible. */
+        }
+      }
+      return true
+    }
     try {
       const user = await session.ensureSession()
       return roles.includes(user.role) ? true : roleHome(user.role)

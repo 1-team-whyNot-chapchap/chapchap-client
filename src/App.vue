@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -19,9 +19,6 @@ import { useAppStore } from './stores/useAppStore'
 const appStore = useAppStore()
 const route = useRoute()
 const router = useRouter()
-onMounted(() => {
-  if (route.path === '/') authSession.ensureSession().catch(() => {})
-})
 
 const navigationItems = [
   { id: 'home', label: '홈', icon: Home },
