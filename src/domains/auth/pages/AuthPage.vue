@@ -2,13 +2,31 @@
 import { computed, ref } from 'vue'
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-vue-next'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
-import { socialLoginUrl } from '../../../common/api/http.js'
-import { RouterLink, useRoute } from 'vue-router'
+import { authSession, socialLoginUrl } from '../../../common/api/http.js'
+import { roleHome } from '../authSession.js'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 const route = useRoute()
+const router = useRouter()
+const localTestLoginEnabled = import.meta.env.DEV && import.meta.env.VITE_ENABLE_LOCAL_TEST_LOGIN === 'true'
+const localTestLoginLoading = ref(false)
+const localTestLoginError = ref('')
 function startSocial(provider) {
   if (selectedProvider.value) return
   selectedProvider.value = provider
   window.location.assign(socialLoginUrl(provider))
+}
+async function loginLocalTestCustomer() {
+  if (localTestLoginLoading.value) return
+  localTestLoginLoading.value = true
+  localTestLoginError.value = ''
+  try {
+    const user = await authSession.loginLocalTestCustomer()
+    await router.replace(roleHome(user.role))
+  } catch (error) {
+    localTestLoginError.value = error.message || '테스트 로그인에 실패했습니다.'
+  } finally {
+    localTestLoginLoading.value = false
+  }
 }
 
 const props = defineProps({
@@ -164,6 +182,19 @@ function continueAfterSubmit() {
             로그인이 만료되었거나 계정 상태가 바뀌었습니다. 같은 소셜 계정으로 다시 로그인해 주세요.
           </p>
           <p class="social-entry__note">가입한 카카오·구글 계정으로 로그인해 주세요.</p>
+          <template v-if="localTestLoginEnabled">
+            <button
+              class="button button-secondary"
+              type="button"
+              :disabled="localTestLoginLoading"
+              @click="loginLocalTestCustomer"
+            >
+              {{ localTestLoginLoading ? '테스트 로그인 중…' : '로컬 테스트 고객으로 로그인' }}
+            </button>
+            <p v-if="localTestLoginError" class="social-entry__note ui-error" role="alert">
+              {{ localTestLoginError }}
+            </p>
+          </template>
           <div class="rider-login-entry">
             <p>라이더로 등록하거나 배송 업무를 시작하시나요?</p>
             <RouterLink :to="{ name: 'rider-login' }">라이더 로그인</RouterLink>

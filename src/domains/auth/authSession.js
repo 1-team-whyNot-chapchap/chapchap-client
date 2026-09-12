@@ -134,6 +134,22 @@ export function createAuthSession(http, authHttp) {
       initialPasswordRequired = false
       return ensureSession()
     },
+    async loginLocalTestCustomer() {
+      if (refreshPromise) await refreshPromise.catch(() => {})
+      clear()
+      initialPasswordRequired = false
+      const version = generation
+      const data = payload(await authHttp.post('/api/auth/local-test-login/customer'))
+      if (version !== generation || typeof data.accessToken !== 'string' || !data.accessToken)
+        throw new Error('테스트 로그인 결과를 확인할 수 없습니다.')
+      accessToken = data.accessToken
+      try {
+        return await loadUser()
+      } catch (error) {
+        clear()
+        throw error
+      }
+    },
     async loginAdmin(username, password) {
       if (refreshPromise) await refreshPromise.catch(() => {})
       clear()
