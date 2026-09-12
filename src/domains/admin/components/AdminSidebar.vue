@@ -169,7 +169,7 @@ function navigate(route) {
 .admin-brand:focus-visible,
 .admin-back-link:focus-visible {
   outline: 3px solid rgba(150, 167, 94, 0.45);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 
 @media (max-width: 1024px) {

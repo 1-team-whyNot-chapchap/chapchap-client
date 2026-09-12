@@ -6,7 +6,7 @@ import DatePicker from 'primevue/datepicker'
 import AdminFrame from '../components/AdminFrame.vue'
 import http from '../../../common/api/http.js'
 import { createAdminRiderManagementApi } from '../api/adminRiderManagementApi.js'
-import { selectButtonPt, datePickerPt } from '../../../common/constants/primeUiPt'
+import { selectButtonPt, popupDatePickerPt } from '../../../common/constants/primeUiPt'
 const route = useRoute()
 const api = createAdminRiderManagementApi(http)
 const rider = computed(() => ({ id: route.params.riderId, name: `라이더 ${route.params.riderId}` }))
@@ -311,7 +311,7 @@ onMounted(load)
                 v-model="exceptionDate"
                 date-format="yy.mm.dd"
                 :manual-input="false"
-                :pt="datePickerPt"
+                :pt="popupDatePickerPt"
                 :disabled="Boolean(editingException)"
               />
               <select
