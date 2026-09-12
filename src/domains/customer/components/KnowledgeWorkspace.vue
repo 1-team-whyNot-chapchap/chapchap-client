@@ -1,5 +1,7 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { createKnowledgePoller, knowledgeStatuses as statuses } from '../knowledgeProgress.js'
 import { customerApi as api } from '../api/customerApi.js'
 import { useCustomerRequest } from '../useCustomerRequest.js'
 import RequestStatus from './RequestStatus.vue'
@@ -22,27 +24,56 @@ const labels = {
 const file = ref(null),
   result = ref(null),
   lookupId = ref('')
-const statuses = {
-  UPLOADED: '접수됨',
-  PROCESSING: '처리 중',
-  COMPLETED: '처리 완료',
-  FAILED: '처리 실패',
-  PENDING: '대기 중',
+const route = useRoute(),
+  router = useRouter()
+let poller,
+  disposed = false
+function observe(id) {
+  if (disposed) return
+  poller?.stop()
+  error.value = ''
+  poller = createKnowledgePoller({
+    fetchVersion: () => api.knowledge(id),
+    onResult: (value) => {
+      result.value = value
+    },
+    onError: () => {
+      error.value = '처리 상태를 불러오지 못했습니다. 처리 상태 조회로 다시 확인해 주세요.'
+    },
+  })
+  poller.start()
 }
+onMounted(() => {
+  const id = String(route.query.knowledgeVersionId || '')
+  if (/^[1-9][0-9]*$/.test(id)) {
+    lookupId.value = id
+    observe(id)
+  }
+})
+onUnmounted(() => {
+  disposed = true
+  poller?.stop()
+})
 function submit() {
   run(async () => {
+    poller?.stop()
     const data = new FormData()
     Object.entries(form).forEach(([key, value]) => data.append(key, value))
     data.append('file', file.value)
-    result.value = await api.registerKnowledge(data)
+    const registered = await api.registerKnowledge(data)
+    if (disposed) return
+    result.value = registered
     lookupId.value = String(result.value.knowledgeVersionId)
-    notice.value = '문서가 접수되었습니다. 처리 상태를 확인해 주세요.'
+    notice.value = '문서가 접수되었습니다. 처리 상태를 자동으로 확인합니다.'
+    await router.replace({ query: { ...route.query, knowledgeVersionId: lookupId.value } })
+    observe(lookupId.value)
   })
 }
 function lookup() {
-  run(async () => {
-    result.value = await api.knowledge(lookupId.value)
-  })
+  if (busy.value || !/^[1-9][0-9]*$/.test(lookupId.value)) return
+  result.value = null
+  router.replace({ query: { ...route.query, knowledgeVersionId: lookupId.value } })
+  observe(lookupId.value)
 }
 </script>
 <template>
@@ -92,7 +123,9 @@ function lookup() {
         {{ result.active ? '사용 중' : '미활성' }}
       </p>
       <p>버전 {{ result.version }} · {{ result.effectiveFrom }}</p>
-      <p v-if="result.failureCode">처리가 완료되지 않았습니다. 오류: {{ result.failureCode }}</p>
+      <p v-if="result.processingStatus === 'FAILED'">
+        문서 처리가 실패했습니다. 파일 내용과 서버 연결 상태를 확인해 주세요.
+      </p>
     </article>
   </section>
 </template>
