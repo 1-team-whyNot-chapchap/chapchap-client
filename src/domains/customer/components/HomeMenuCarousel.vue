@@ -1,20 +1,15 @@
 <script setup>
 import { ArrowRight } from 'lucide-vue-next'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { usePlanStore } from '../../subscription/stores/usePlanStore.js'
-import { getHomeMenuDisplayDate, selectHomeMenu } from '../../subscription/homeMenu.js'
-import { publicDateLabel } from '../../subscription/publicMenuDate.js'
-import { useHolidayStore } from '../../subscription/stores/useHolidayStore.js'
+import { getHomeMenuDate, selectHomeMenu } from '../../subscription/homeMenu.js'
 
 const emit = defineEmits(['navigate'])
 
 const planStore = usePlanStore()
-const holidayStore = useHolidayStore()
-const checkedAt = ref(new Date())
-const menuDate = computed(() => getHomeMenuDisplayDate(holidayStore.calendar, checkedAt.value))
+const menuDate = getHomeMenuDate()
 const listLoading = ref(true)
 const failedImages = ref({})
-let loadVersion = 0
 const unexpectedPlanCount = computed(
   () => planStore.plans.length > 0 && planStore.plans.length !== 3,
 )
@@ -23,20 +18,14 @@ const cards = computed(() =>
     planId: plan.planId,
     planLabel: plan.name,
     status: planStore.detailStatuses[plan.planId] || 'idle',
-    menu: selectHomeMenu(planStore.details[plan.planId], Number(menuDate.value?.slice(-2))),
+    menu: selectHomeMenu(planStore.details[plan.planId], menuDate.day),
   })),
 )
 
 async function loadMenus(force = false) {
-  const current = ++loadVersion
   listLoading.value = true
-  checkedAt.value = new Date()
-  failedImages.value = {}
   try {
-    await holidayStore.fetchHolidays(force)
-    if (current !== loadVersion || !menuDate.value) return
     const plans = await planStore.fetchPlans(force)
-    if (current !== loadVersion) return
     if (plans.length === 3) {
       // 상세 조회 상태를 카드별로 표시해 성공한 카드는 계속 보여 준다.
       const requests = plans.map((plan) => planStore.fetchPlan(plan.planId, force))
@@ -44,7 +33,7 @@ async function loadMenus(force = false) {
       await Promise.all(requests)
     }
   } finally {
-    if (current === loadVersion) listLoading.value = false
+    listLoading.value = false
   }
 }
 
@@ -54,33 +43,17 @@ async function retryPlan(planId) {
 }
 
 onMounted(() => loadMenus())
-onUnmounted(() => {
-  loadVersion++
-})
 </script>
 
 <template>
   <section class="home-menu" aria-labelledby="home-menu-title">
     <div class="home-menu__heading">
       <h2 id="home-menu-title">이번 주 챱챱 메뉴</h2>
-      <p v-if="menuDate">{{ publicDateLabel(menuDate) }} 기준 플랜별 메뉴를 살펴보세요.</p>
+      <p>{{ menuDate.label }} 기준 플랜별 메뉴를 살펴보세요.</p>
       <p>플랜 메뉴 소개이며, 실제 배송 일정은 구독 조건에 따라 달라집니다.</p>
     </div>
 
     <div v-if="listLoading" class="home-menu__status" role="status">메뉴를 불러오는 중입니다.</div>
-    <div v-else-if="holidayStore.status === 'error'" class="home-menu__status" role="alert">
-      <p>공휴일 정보를 불러오지 못해 메뉴 기준 날짜를 확인할 수 없습니다.</p>
-      <button class="button button-secondary" type="button" @click="loadMenus(true)">
-        다시 시도
-      </button>
-    </div>
-    <div v-else-if="!menuDate" class="home-menu__status" role="status">
-      <p>공휴일 정보 제공 범위 안에서 안내할 메뉴 날짜를 확인할 수 없습니다.</p>
-      <p v-if="holidayStore.calendar">
-        제공 범위: {{ holidayStore.calendar.supportedStartDate }} ~
-        {{ holidayStore.calendar.supportedEndDate }}
-      </p>
-    </div>
     <div v-else-if="planStore.listStatus === 'error'" class="home-menu__status" role="alert">
       <p>플랜 목록을 불러오지 못했습니다.</p>
       <button class="button button-secondary" type="button" @click="loadMenus(true)">
@@ -157,9 +130,9 @@ onUnmounted(() => {
     <button
       class="button button-primary home-menu__more"
       type="button"
-      @click="emit('navigate', 'menu')"
+      @click="emit('navigate', 'plans')"
     >
-      날짜별 메뉴 전체 보기
+      플랜별 메뉴 전체 보기
       <ArrowRight :size="18" aria-hidden="true" />
     </button>
   </section>
