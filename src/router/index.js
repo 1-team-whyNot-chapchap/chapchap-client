@@ -107,8 +107,7 @@ const authRoutes = pageCatalog
   .map((page) => ({
     path: `/wf-${page.id}`,
     name: `wf-${page.id}`,
-    component: AuthPage,
-    props: { pageId: page.id },
+    redirect: ['003', '007'].includes(page.id) ? '/signup' : '/login',
     meta: { layout: 'minimal' },
   }))
 
