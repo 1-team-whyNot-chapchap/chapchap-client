@@ -1,6 +1,7 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
+import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -19,6 +20,7 @@ import { useAppStore } from './stores/useAppStore'
 
 const appStore = useAppStore()
 const addressStore = useAddressStore()
+const firstSubscriptionStore = useFirstSubscriptionStore()
 watch(
   () => authSession.state.user,
   (user, previous) => {
@@ -31,6 +33,7 @@ watch(
     )
       return
     addressStore.invalidate()
+    firstSubscriptionStore.$reset()
     appStore.$reset()
   },
   { flush: 'sync' },
@@ -56,7 +59,7 @@ const isMinimalPage = computed(() => route.meta.layout === 'minimal')
 const activeNavigation = computed(() => {
   const routeName = String(route.name || '')
 
-  if (['menu', 'wf-008', 'wf-009', 'subscribe-menu'].includes(routeName)) {
+  if (['menu', 'wf-008', 'wf-009'].includes(routeName)) {
     return 'menu'
   }
 
