@@ -159,6 +159,11 @@ function navigate(view) {
 .app-shell {
   min-height: 100vh;
 }
+.app-shell:not(.admin-mode):not(.customer-minimal-mode) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
 </style>
 
 <style scoped>
@@ -169,7 +174,7 @@ function navigate(view) {
 
 <style scoped>
 .customer-content {
-  padding-bottom: 112px;
+  flex: 1 0 auto;
 }
 
 .customer-content--minimal {
@@ -213,12 +218,6 @@ function navigate(view) {
 @media (max-width: 1320px) {
   .bottom-navigation {
     display: flex;
-  }
-}
-
-@media (max-width: 760px) {
-  .customer-content {
-    padding-bottom: 90px;
   }
 }
 
