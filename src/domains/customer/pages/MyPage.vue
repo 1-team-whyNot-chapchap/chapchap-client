@@ -13,9 +13,43 @@ import {
   MessageCircle,
 } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import http, { authSession } from '../../../common/api/http.js'
+import { createAccountApi } from '../../auth/accountApi.js'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 
 const emit = defineEmits(['navigate'])
+const api = createAccountApi(http)
+const photo = ref('')
+const photoError = ref(false)
+let photoRequest = 0
+function releasePhoto() {
+  if (photo.value) URL.revokeObjectURL(photo.value)
+  photo.value = ''
+}
+function failPhoto() {
+  releasePhoto()
+  photoError.value = true
+}
+async function loadPhoto() {
+  const request = ++photoRequest
+  releasePhoto()
+  photoError.value = false
+  if (!authSession.state.user) return
+  try {
+    const profile = await api.profile()
+    if (request !== photoRequest || !profile.profileImageUrl) return
+    const blob = await api.image()
+    if (request === photoRequest) photo.value = URL.createObjectURL(blob)
+  } catch {
+    if (request === photoRequest) photoError.value = true
+  }
+}
+watch(() => authSession.state.user, loadPhoto, { immediate: true })
+onBeforeUnmount(() => {
+  photoRequest++
+  releasePhoto()
+})
 
 const links = [
   { label: '내 정보', detail: '이름과 연락처를 관리해요', icon: UserRound, route: 'wf-027' },
@@ -59,10 +93,19 @@ const links = [
     <DesignPreview title="마이" empty="아직 구독 내역이 없어요.">
       <p class="my-greeting">나의 챱챱 · 안녕하세요</p>
       <section class="mypage-profile">
-        <h1 class="sr-only">마이페이지</h1>
         <RouterLink class="profile-avatar" to="/mypage/profile" aria-label="프로필 사진 변경">
-          <UserRound :size="36" aria-hidden="true" />
+          <img
+            v-if="photo"
+            :src="photo"
+            alt="내 프로필 사진"
+            @error="failPhoto"
+          />
+          <UserRound v-else :size="36" aria-hidden="true" />
         </RouterLink>
+        <h1 class="profile-name">
+          {{ authSession.state.user?.name || '마이페이지'
+          }}<span v-if="authSession.state.user?.name">님</span>
+        </h1>
         <button
           type="button"
           class="icon-button"
@@ -72,6 +115,11 @@ const links = [
           <Bell :size="20" aria-hidden="true" />
         </button>
       </section>
+
+      <p v-if="photoError" class="photo-error" role="status">
+        프로필 사진을 불러오지 못했어요.
+        <button type="button" class="text-action" @click="loadPhoto">다시 시도</button>
+      </p>
 
       <section class="account-metrics">
         <div>
@@ -115,6 +163,10 @@ const links = [
 </template>
 
 <style scoped>
+.photo-error {
+  color: var(--color-text-muted);
+  font-size: var(--font-caption);
+}
 .mypage-profile {
   display: flex;
   align-items: center;
@@ -155,6 +207,18 @@ const links = [
   margin: 0;
   line-height: 1.2;
   font-size: var(--font-page-title);
+}
+
+.mypage-profile .profile-name {
+  min-width: 0;
+  font-size: clamp(20px, 3vw, 28px);
+  overflow-wrap: anywhere;
+}
+
+.profile-name span {
+  margin-left: 4px;
+  font-size: 0.75em;
+  font-weight: 500;
 }
 
 .icon-button {

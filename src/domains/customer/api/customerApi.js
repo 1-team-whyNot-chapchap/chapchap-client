@@ -40,6 +40,8 @@ export function createCustomerApi(client) {
     registerKnowledge: (form) => write('post', '/admin/knowledge/versions', form),
     knowledge: (versionId) => get(`/admin/knowledge/versions/${id(versionId)}`),
     consultations: (admin = false) => get(admin ? '/admin/consultations' : '/consultations'),
+    consultationSummary: (consultationId) =>
+      get(`/admin/consultations/${id(consultationId)}/summary`),
     assignedConsultations: () => get('/admin/consultations/assigned'),
     consultation: (consultationId, admin = false) =>
       get(`${admin ? '/admin' : ''}/consultations/${id(consultationId)}`),

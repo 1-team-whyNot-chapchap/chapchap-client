@@ -1,3 +1,4 @@
+import { scrollBehavior } from './scrollBehavior.js'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { pageCatalog } from './pageCatalog'
 import { authSession } from '../common/api/http.js'
@@ -58,7 +59,6 @@ const DeliveryHistoryPage = () => import('../domains/delivery/pages/DeliveryHist
 const HomePage = () => import('../domains/customer/pages/HomePage.vue')
 const MenuDetailPage = () => import('../domains/product/pages/MenuDetailPage.vue')
 const MenuListPage = () => import('../domains/product/pages/MenuListPage.vue')
-const MenuBuilder = () => import('../domains/subscription/pages/MenuBuilder.vue')
 const MyPage = () => import('../domains/customer/pages/MyPage.vue')
 const NotificationPage = () => import('../domains/customer/pages/NotificationPage.vue')
 const PaymentDetailPage = () => import('../domains/customer/pages/PaymentDetailPage.vue')
@@ -107,8 +107,7 @@ const authRoutes = pageCatalog
   .map((page) => ({
     path: `/wf-${page.id}`,
     name: `wf-${page.id}`,
-    component: AuthPage,
-    props: { pageId: page.id },
+    redirect: ['003', '007'].includes(page.id) ? '/signup' : '/login',
     meta: { layout: 'minimal' },
   }))
 
@@ -126,6 +125,7 @@ const adminRoutes = pageCatalog
 // 별도 서버 설정이 없는 현재 디자인 프로토타입에서도 새로고침 시 화면을 안전하게 다시 찾습니다.
 // 예: #/plans 주소는 플랜 화면을 뜻합니다.
 const router = createRouter({
+  scrollBehavior,
   history: createWebHashHistory(),
   routes: [
     {
@@ -158,12 +158,6 @@ const router = createRouter({
       meta: { layout: 'minimal' },
     },
     { path: '/menu', name: 'menu', component: MenuListPage },
-    {
-      path: '/subscribe/menu',
-      name: 'subscribe-menu',
-      component: MenuBuilder,
-      meta: { layout: 'minimal' },
-    },
     { path: '/plans', name: 'plans', component: PlanPage },
     { path: '/plans/:planId', name: 'plan-detail', component: PlanDetailPage, props: true },
     ...authRoutes,

@@ -1,9 +1,11 @@
 <script setup>
+import { displayDateTime } from '../../../common/utils/displayDate.js'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { customerApi as api } from '../api/customerApi.js'
 import { useCustomerRequest } from '../useCustomerRequest.js'
 import RequestStatus from './RequestStatus.vue'
+import ConsultationHandoffSummary from './ConsultationHandoffSummary.vue'
 import http, { authSession } from '../../../common/api/http.js'
 import { createConsultationConnection } from '../realtime/consultationConnection.js'
 const props = defineProps({ admin: Boolean, detail: Boolean })
@@ -17,9 +19,12 @@ const rows = ref([]),
   draft = ref('')
 const messageDraft = ref(''),
   sending = ref(false),
-  connectionState = ref('closed')
+  connectionState = ref('closed'),
+  confirmingClose = ref(false)
 let connection, confirmationTimer, statusTimer
 let statusLoading = false
+let disposed = false,
+  selectionVersion = 0
 const connectionLabels = {
   connecting: '상담에 연결 중입니다.',
   connected: '실시간 연결됨',
@@ -29,7 +34,8 @@ const connectionLabels = {
 }
 function connectConversation() {
   connection?.stop()
-  if (!selected.value || !authSession.state.user || selected.value.status === 'CLOSED') return
+  if (disposed || !selected.value || !authSession.state.user || selected.value.status === 'CLOSED')
+    return
   const consultationId = selected.value.consultationId
   const url = new URL(
     '/ws/customer/consultations',
@@ -58,7 +64,7 @@ function connectConversation() {
           api.consultation(consultationId, props.admin),
           api.messages(consultationId, props.admin),
         ])
-        if (String(selected.value?.consultationId) !== String(consultationId)) return
+        if (disposed || String(selected.value?.consultationId) !== String(consultationId)) return
         selected.value = current
         // 조회 중 수신한 새 메시지를 오래된 HTTP 스냅샷으로 덮어쓰지 않는다.
         messages.value = [
@@ -67,7 +73,7 @@ function connectConversation() {
           ).values(),
         ].sort((a, b) => a.sequenceNo - b.sequenceNo)
       } catch {
-        error.value = '대화 이력을 다시 불러오지 못했습니다. 새로고침해 주세요.'
+        if (!disposed) error.value = '대화 이력을 다시 불러오지 못했습니다. 새로고침해 주세요.'
       }
     },
     onMessage: (message) => {
@@ -106,6 +112,7 @@ watch(
   () => selected.value?.consultationId,
   () => {
     messageDraft.value = ''
+    confirmingClose.value = false
     sending.value = false
     clearTimeout(confirmationTimer)
     connectConversation()
@@ -121,6 +128,7 @@ watch(
   () => authSession.state.user,
   (user) => {
     if (!user) {
+      selectionVersion++
       connection?.stop()
       selected.value = null
       messages.value = []
@@ -130,6 +138,8 @@ watch(
   },
 )
 onUnmounted(() => {
+  disposed = true
+  selectionVersion++
   connection?.stop()
   clearTimeout(confirmationTimer)
   clearInterval(statusTimer)
@@ -141,12 +151,25 @@ const states = {
   CLOSED: '종료',
 }
 async function select(id) {
+  const version = ++selectionVersion
   const [conversation, history] = await Promise.all([
     api.consultation(id, props.admin),
     api.messages(id, props.admin),
   ])
+  if (disposed || version !== selectionVersion || !authSession.state.user) return
+  const same = String(selected.value?.consultationId) === String(id)
+  messages.value = [
+    ...new Map(
+      [...history.messages, ...(same ? messages.value : [])].map((row) => [
+        String(row.messageId),
+        row,
+      ]),
+    ).values(),
+  ].sort((a, b) => a.sequenceNo - b.sequenceNo)
   selected.value = conversation
-  messages.value = history.messages
+}
+async function open(id) {
+  await router.replace({ query: { ...route.query, consultationId: String(id) } })
 }
 const reload = () =>
   run(async () => {
@@ -156,13 +179,21 @@ const reload = () =>
     }
     rows.value = await api.consultations(props.admin)
     if (props.admin) assigned.value = await api.assignedConsultations()
-    if (selected.value) await select(selected.value.consultationId)
+    const id = route.query.consultationId || selected.value?.consultationId
+    if (id && /^[1-9][0-9]*$/.test(String(id))) await select(id)
+    if (
+      selected.value &&
+      selected.value.status !== 'CLOSED' &&
+      connectionState.value !== 'connected'
+    )
+      connectConversation()
   })
 function create() {
   run(async () => {
     const created = await api.createConsultation(draft.value.trim())
     draft.value = ''
     rows.value = await api.consultations()
+    await open(created.consultationId)
     await select(created.consultationId)
   })
 }
@@ -181,15 +212,16 @@ function handoff() {
   })
 }
 function close() {
-  if (window.confirm('상담을 종료할까요?'))
-    run(async () => {
-      selected.value = await api.close(selected.value.consultationId)
-      notice.value = '상담을 종료했습니다.'
-    })
+  run(async () => {
+    selected.value = await api.close(selected.value.consultationId)
+    confirmingClose.value = false
+    notice.value = '상담을 종료했습니다.'
+  })
 }
 watch(
-  () => route.params.consultationId,
+  () => (props.detail ? route.params.consultationId : route.query.consultationId),
   () => {
+    selectionVersion++
     selected.value = null
     messages.value = []
     reload()
@@ -204,7 +236,8 @@ onMounted(() => {
     statusLoading = true
     try {
       const current = await api.consultation(id, props.admin)
-      if (String(selected.value?.consultationId) === String(id)) selected.value = current
+      if (!disposed && String(selected.value?.consultationId) === String(id))
+        selected.value = current
     } catch {
       connection?.stop()
       error.value = '상담 상태를 확인하지 못했습니다. 새로고침해 주세요.'
@@ -216,7 +249,7 @@ onMounted(() => {
 </script>
 <template>
   <section class="ui-stack">
-    <div class="ui-actions">
+    <div class="ui-actions ui-actions--end">
       <button class="button button-secondary" :disabled="busy" @click="reload">새로고침</button
       ><RouterLink v-if="detail" class="button button-secondary" to="/admin/consultations"
         >상담 목록</RouterLink
@@ -239,11 +272,11 @@ onMounted(() => {
         <h2>{{ admin ? '연결 대기 상담' : '내 상담' }}</h2>
         <article v-for="row in rows" :key="row.consultationId" class="ui-stack">
           <h3>상담 #{{ row.consultationId }}</h3>
-          <p>{{ states[row.status] }} · {{ row.createdAt }}</p>
+          <p>{{ states[row.status] }} · {{ displayDateTime(row.createdAt) }}</p>
           <button
             class="button button-secondary"
             :disabled="busy"
-            @click="admin ? accept(row) : run(() => select(row.consultationId))"
+            @click="admin ? accept(row) : open(row.consultationId)"
           >
             {{ admin ? '수락하고 연결' : '대화 보기' }}
           </button>
@@ -274,11 +307,34 @@ onMounted(() => {
             v-if="admin && selected.status === 'IN_PROGRESS'"
             class="button button-secondary"
             :disabled="busy"
-            @click="close"
+            @click="confirmingClose = true"
           >
             상담 종료
           </button>
         </div>
+        <div
+          v-if="confirmingClose && selected.status === 'IN_PROGRESS'"
+          class="ui-stack"
+          role="group"
+          aria-label="상담 종료 확인"
+        >
+          <p>상담을 종료하면 더 이상 메시지를 보낼 수 없습니다. 종료할까요?</p>
+          <div class="ui-actions">
+            <button class="button button-primary" :disabled="busy" @click="close">종료 확인</button>
+            <button
+              class="button button-secondary"
+              :disabled="busy"
+              @click="confirmingClose = false"
+            >
+              계속 상담
+            </button>
+          </div>
+        </div>
+        <ConsultationHandoffSummary
+          v-if="admin"
+          :key="selected.consultationId"
+          :consultation-id="selected.consultationId"
+        />
         <ol class="ui-list" aria-label="대화 내용" style="max-height: 55vh; overflow-y: auto">
           <li v-for="message in messages" :key="message.messageId" class="ui-list-item">
             <div>
@@ -288,13 +344,15 @@ onMounted(() => {
                 ] || '상담'
               }}</strong>
               <p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ message.content }}</p>
-              <time>{{ message.createdAt }}</time>
+              <time :datetime="message.createdAt" :title="message.createdAt">{{
+                displayDateTime(message.createdAt)
+              }}</time>
             </div>
           </li>
         </ol>
         <p role="status">{{ connectionLabels[connectionState] }}</p>
         <button
-          v-if="connectionState === 'failed'"
+          v-if="selected.status !== 'CLOSED' && ['failed', 'closed'].includes(connectionState)"
           class="button button-secondary"
           @click="connectConversation"
         >

@@ -231,7 +231,7 @@
 .ui-dialog :focus-visible,
 .ui-calendar :focus-visible {
   outline: 3px solid var(--color-primary-hover);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 .ui-dialog-mask {
   background: rgb(0 0 0 / 35%);
@@ -442,4 +442,20 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+.ui-actions--end {
+  justify-content: flex-end;
+}
+@media (max-width: 640px) {
+  .ui-heading > .button {
+    align-self: flex-end;
+  }
+}
+
+.ui-action-end {
+  justify-self: end;
+  align-self: end;
+  margin-left: auto;
+  width: fit-content;
 }

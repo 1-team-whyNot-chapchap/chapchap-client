@@ -2,6 +2,20 @@
 import { Bike, LayoutDashboard, LogIn } from 'lucide-vue-next'
 import LogoutButton from '../../domains/auth/components/LogoutButton.vue'
 import { authSession } from '../api/http.js'
+import { computed } from 'vue'
+
+const navigationItems = computed(() =>
+  authSession.state.user
+    ? [
+        { id: 'menu', label: '메뉴' },
+        { id: 'plans', label: '플랜' },
+        { id: 'mypage', label: '마이' },
+      ]
+    : [
+        { id: 'plans', label: '플랜' },
+        { id: 'menu', label: '메뉴' },
+      ],
+)
 
 defineProps({
   currentView: {
@@ -18,77 +32,62 @@ const emit = defineEmits(['navigate'])
 
 <template>
   <header class="customer-header">
-    <button
-      class="brand-button"
-      type="button"
-      aria-label="챱챱 홈으로"
-      @click="emit('navigate', 'home')"
-    >
-      <!-- img는 전달받은 브랜드 이미지를 표시하는 태그이며, 버튼의 aria-label이 이름을 대신하므로 alt는 비워 둡니다. -->
-      <img class="brand-mark" src="/images/chapchap-brand-logo.png" alt="" />
-    </button>
+    <div class="customer-header__inner">
+      <button
+        class="brand-button"
+        type="button"
+        aria-label="챱챱 홈으로"
+        @click="emit('navigate', 'home')"
+      >
+        <!-- img는 전달받은 브랜드 이미지를 표시하는 태그이며, 버튼의 aria-label이 이름을 대신하므로 alt는 비워 둡니다. -->
+        <img class="brand-mark" src="/images/chapchap-brand-logo.png" alt="" />
+      </button>
 
-    <nav class="desktop-navigation" aria-label="상단 메뉴">
-      <button
-        type="button"
-        :class="{ 'is-active': currentView === 'menu' }"
-        @click="emit('navigate', 'menu')"
-      >
-        메뉴
-      </button>
-      <button
-        type="button"
-        :class="{ 'is-active': currentView === 'plans' }"
-        @click="emit('navigate', 'plans')"
-      >
-        플랜
-      </button>
-      <button
-        type="button"
-        :class="{ 'is-active': currentView === 'subscription' }"
-        @click="emit('navigate', 'subscription')"
-      >
-        내 구독
-      </button>
-      <button
-        type="button"
-        :class="{ 'is-active': currentView === 'mypage' }"
-        @click="emit('navigate', 'mypage')"
-      >
-        마이
-      </button>
-    </nav>
+      <nav class="desktop-navigation" aria-label="상단 메뉴">
+        <button
+          type="button"
+          v-for="item in navigationItems"
+          :key="item.id"
+          :class="{ 'is-active': currentView === item.id }"
+          @click="emit('navigate', item.id)"
+        >
+          {{ item.label }}
+        </button>
+      </nav>
 
-    <div class="header-actions">
-      <button
-        class="header-admin-button"
-        type="button"
-        aria-label="관리자 페이지로"
-        @click="emit('navigate', 'admin')"
-      >
-        <LayoutDashboard :size="17" aria-hidden="true" />
-        <span>관리자</span>
-      </button>
-      <button
-        class="header-rider-button"
-        type="button"
-        aria-label="라이더 화면으로"
-        @click="emit('navigate', 'rider-deliveries')"
-      >
-        <Bike :size="17" aria-hidden="true" />
-        <span>라이더</span>
-      </button>
-      <button
-        class="header-auth-button"
-        v-if="!authSession.state.user"
-        type="button"
-        aria-label="로그인 화면으로"
-        @click="emit('navigate', 'login')"
-      >
-        <LogIn :size="17" aria-hidden="true" />
-        <span>로그인</span>
-      </button>
-      <LogoutButton />
+      <div class="header-actions">
+        <button
+          class="header-admin-button"
+          v-if="['ADMIN', 'SUPER_ADMIN'].includes(authSession.state.user?.role)"
+          type="button"
+          aria-label="관리자 페이지로"
+          @click="emit('navigate', 'admin')"
+        >
+          <LayoutDashboard :size="17" aria-hidden="true" />
+          <span>관리자</span>
+        </button>
+        <button
+          class="header-rider-button"
+          v-if="authSession.state.user?.role === 'RIDER'"
+          type="button"
+          aria-label="라이더 화면으로"
+          @click="emit('navigate', 'rider-deliveries')"
+        >
+          <Bike :size="17" aria-hidden="true" />
+          <span>라이더</span>
+        </button>
+        <button
+          class="header-auth-button"
+          v-if="!authSession.state.user"
+          type="button"
+          aria-label="로그인 화면으로"
+          @click="emit('navigate', 'login')"
+        >
+          <LogIn :size="17" aria-hidden="true" />
+          <span>로그인</span>
+        </button>
+        <LogoutButton />
+      </div>
     </div>
   </header>
 </template>
@@ -101,15 +100,22 @@ const emit = defineEmits(['navigate'])
   height: 72px;
   max-width: none;
   margin: 0;
-  /* 헤더의 시작·끝을 .page 콘텐츠와 맞춰 화면 중심축이 흔들리지 않게 합니다. */
-  padding: 0 max(var(--page-gutter), calc((100vw - var(--content-max-width)) / 2 + 64px));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  padding: 0;
   border-bottom: 1px solid var(--color-border);
   background: rgba(255, 253, 249, 0.96);
   box-shadow: 0 5px 16px rgba(51, 53, 47, 0.04);
   backdrop-filter: blur(14px);
+}
+
+.customer-header__inner {
+  width: 100%;
+  max-width: var(--content-max-width);
+  height: 100%;
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .brand-button,
@@ -181,7 +187,7 @@ const emit = defineEmits(['navigate'])
 @media (max-width: 760px) {
   .customer-header {
     height: 64px;
-    padding: 0 var(--page-gutter);
+    padding: 0;
   }
 
   .brand-button .brand-mark {

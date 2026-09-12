@@ -1,15 +1,11 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, watch } from 'vue'
+import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
+import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
+import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  CalendarDays,
-  CircleUserRound,
-  Home,
-  LayoutDashboard,
-  Package,
-  Salad,
-} from 'lucide-vue-next'
+import { CircleUserRound, Home, LayoutDashboard, Package, Salad } from 'lucide-vue-next'
 import CustomerHeader from './common/layouts/CustomerHeader.vue'
 import CustomerFooter from './common/layouts/CustomerFooter.vue'
 import CustomerQuickNavigation from './common/components/navigation/CustomerQuickNavigation.vue'
@@ -17,19 +13,44 @@ import PlanSelectionSheet from './domains/subscription/components/PlanSelectionS
 import { useAppStore } from './stores/useAppStore'
 
 const appStore = useAppStore()
+const addressStore = useAddressStore()
+const firstSubscriptionStore = useFirstSubscriptionStore()
+const orderStore = useOrderStore()
+watch(
+  () => authSession.state.user,
+  (user, previous) => {
+    if (
+      user &&
+      previous &&
+      user.email === previous.email &&
+      user.phone === previous.phone &&
+      user.role === previous.role
+    )
+      return
+    addressStore.invalidate()
+    firstSubscriptionStore.$reset()
+    orderStore.clearSelectedOrder()
+    orderStore.$reset()
+    appStore.$reset()
+  },
+  { flush: 'sync' },
+)
 const route = useRoute()
 const router = useRouter()
-onMounted(() => {
-  if (route.path === '/') authSession.ensureSession().catch(() => {})
-})
 
-const navigationItems = [
+const navigationItems = computed(() => [
   { id: 'home', label: '홈', icon: Home },
-  { id: 'menu', label: '메뉴', icon: Salad },
-  { id: 'plans', label: '플랜', icon: Package },
-  { id: 'subscription', label: '내 구독', icon: CalendarDays },
-  { id: 'mypage', label: '마이', icon: CircleUserRound },
-]
+  ...(authSession.state.user
+    ? [
+        { id: 'menu', label: '메뉴', icon: Salad },
+        { id: 'plans', label: '플랜', icon: Package },
+        { id: 'mypage', label: '마이', icon: CircleUserRound },
+      ]
+    : [
+        { id: 'plans', label: '플랜', icon: Package },
+        { id: 'menu', label: '메뉴', icon: Salad },
+      ]),
+])
 
 // computed는 반응형 값을 조합해 새 값을 만드는 Vue 문법입니다.
 // 현재 선택된 화면이 관리자 화면인지 계산합니다.
@@ -41,7 +62,7 @@ const isMinimalPage = computed(() => route.meta.layout === 'minimal')
 const activeNavigation = computed(() => {
   const routeName = String(route.name || '')
 
-  if (['menu', 'wf-008', 'wf-009', 'subscribe-menu'].includes(routeName)) {
+  if (['menu', 'wf-008', 'wf-009'].includes(routeName)) {
     return 'menu'
   }
 
@@ -92,10 +113,6 @@ const activeNavigation = computed(() => {
 
 function navigate(view) {
   router.push({ name: view })
-  window.scrollTo({
-    top: 0,
-    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-  })
 }
 </script>
 
@@ -162,6 +179,11 @@ function navigate(view) {
 .app-shell {
   min-height: 100vh;
 }
+.app-shell:not(.admin-mode):not(.customer-minimal-mode) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
 </style>
 
 <style scoped>
@@ -172,7 +194,7 @@ function navigate(view) {
 
 <style scoped>
 .customer-content {
-  padding-bottom: 112px;
+  flex: 1 0 auto;
 }
 
 .customer-content--minimal {
@@ -216,12 +238,6 @@ function navigate(view) {
 @media (max-width: 1320px) {
   .bottom-navigation {
     display: flex;
-  }
-}
-
-@media (max-width: 760px) {
-  .customer-content {
-    padding-bottom: 90px;
   }
 }
 
