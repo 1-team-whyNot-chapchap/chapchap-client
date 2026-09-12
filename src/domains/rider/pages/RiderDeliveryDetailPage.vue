@@ -9,10 +9,12 @@ import DesignPreview from '../../../common/components/feedback/DesignPreview.vue
 import { dialogPt } from '../../../common/constants/primeUiPt'
 import http from '../../../common/api/http.js'
 import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
+import { useRiderLocationTracker } from '../useRiderLocationTracker.js'
 
 const props = defineProps({ deliveryId: { type: String, required: true } })
 const route = useRoute()
 const api = createDeliveryExecutionApi(http)
+const tracker = useRiderLocationTracker()
 const assignment = ref(null)
 const loading = ref(false)
 const panel = ref('')
@@ -36,6 +38,9 @@ const handoffLabel = { DIRECT: '직접 전달', DOORSTEP: '비대면 전달', OT
 const delivery = computed(() =>
   assignment.value?.deliveries.find((item) => item.deliveryId === props.deliveryId),
 )
+const hasDelivering = computed(() =>
+  assignment.value?.deliveries.some((item) => item.status === 'DELIVERING'),
+)
 const finished = computed(() => ['DELIVERED', 'FAILED'].includes(delivery.value?.status))
 const canComplete = computed(
   () =>
@@ -55,6 +60,8 @@ async function load() {
   loading.value = true
   try {
     assignment.value = await api.getAssignment(route.query.assignmentId)
+    if (hasDelivering.value) tracker.start()
+    else tracker.stop()
   } catch (error) {
     assignment.value = null
     notice.value = error.message || '배송 정보를 불러오지 못했습니다.'
@@ -191,6 +198,12 @@ onMounted(load)
         <section class="ui-surface ui-stack">
           <h2>배송 처리</h2>
           <p class="ui-muted">실제 실행 가능 여부는 배정 확정과 서버 상태 확인 후 결정됩니다.</p>
+          <p v-if="delivery.status === 'DELIVERING'" class="ui-muted">
+            배송 중에는 고객에게 현재 위치를 공유합니다. 이동 경로는 저장하지 않습니다.
+          </p>
+          <p v-if="tracker.state.permissionError" class="ui-error" role="alert">
+            {{ tracker.state.permissionError }}
+          </p>
           <button
             v-if="delivery.status === 'READY'"
             class="button button-primary"
