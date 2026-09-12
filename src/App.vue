@@ -193,6 +193,15 @@ function navigate(view) {
   flex: 1 0 auto;
 }
 
+/* 공통 헤더가 있는 페이지의 바깥 경계를 한 곳에서 관리합니다. */
+.customer-content:not(.customer-content--minimal)
+  > :deep(:is(.page, .workspace-ui, .account-design, .system-state-page)) {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
 .customer-content--minimal {
   padding-bottom: 0;
 }
