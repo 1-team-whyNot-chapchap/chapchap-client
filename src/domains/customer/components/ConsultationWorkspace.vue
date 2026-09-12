@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { customerApi as api } from '../api/customerApi.js'
 import { useCustomerRequest } from '../useCustomerRequest.js'
 import RequestStatus from './RequestStatus.vue'
+import ConsultationHandoffSummary from './ConsultationHandoffSummary.vue'
 import http, { authSession } from '../../../common/api/http.js'
 import { createConsultationConnection } from '../realtime/consultationConnection.js'
 const props = defineProps({ admin: Boolean, detail: Boolean })
@@ -279,6 +280,11 @@ onMounted(() => {
             상담 종료
           </button>
         </div>
+        <ConsultationHandoffSummary
+          v-if="admin"
+          :key="selected.consultationId"
+          :consultation-id="selected.consultationId"
+        />
         <ol class="ui-list" aria-label="대화 내용" style="max-height: 55vh; overflow-y: auto">
           <li v-for="message in messages" :key="message.messageId" class="ui-list-item">
             <div>
