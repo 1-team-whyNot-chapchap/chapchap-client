@@ -203,7 +203,7 @@ function startSocial(provider) {
 }
 .social-login-button:focus-visible {
   outline: 3px solid var(--color-primary-pressed);
-  outline-offset: 4px;
+  outline-offset: -3px;
 }
 .social-entry {
   margin-top: 32px;

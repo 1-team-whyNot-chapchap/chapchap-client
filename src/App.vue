@@ -1,16 +1,10 @@
 <script setup>
 import { computed, watch } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
+import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  CalendarDays,
-  CircleUserRound,
-  Home,
-  LayoutDashboard,
-  Package,
-  Salad,
-} from 'lucide-vue-next'
+import { CircleUserRound, Home, LayoutDashboard, Package, Salad } from 'lucide-vue-next'
 import CustomerHeader from './common/layouts/CustomerHeader.vue'
 import CustomerFooter from './common/layouts/CustomerFooter.vue'
 import CustomerQuickNavigation from './common/components/navigation/CustomerQuickNavigation.vue'
@@ -19,6 +13,7 @@ import { useAppStore } from './stores/useAppStore'
 
 const appStore = useAppStore()
 const addressStore = useAddressStore()
+const firstSubscriptionStore = useFirstSubscriptionStore()
 watch(
   () => authSession.state.user,
   (user, previous) => {
@@ -31,6 +26,7 @@ watch(
     )
       return
     addressStore.invalidate()
+    firstSubscriptionStore.$reset()
     appStore.$reset()
   },
   { flush: 'sync' },
@@ -38,13 +34,19 @@ watch(
 const route = useRoute()
 const router = useRouter()
 
-const navigationItems = [
+const navigationItems = computed(() => [
   { id: 'home', label: '홈', icon: Home },
-  { id: 'menu', label: '메뉴', icon: Salad },
-  { id: 'plans', label: '플랜', icon: Package },
-  { id: 'subscription', label: '내 구독', icon: CalendarDays },
-  { id: 'mypage', label: '마이', icon: CircleUserRound },
-]
+  ...(authSession.state.user
+    ? [
+        { id: 'plans', label: '플랜', icon: Package },
+        { id: 'menu', label: '메뉴', icon: Salad },
+        { id: 'mypage', label: '마이', icon: CircleUserRound },
+      ]
+    : [
+        { id: 'plans', label: '플랜', icon: Package },
+        { id: 'menu', label: '메뉴', icon: Salad },
+      ]),
+])
 
 // computed는 반응형 값을 조합해 새 값을 만드는 Vue 문법입니다.
 // 현재 선택된 화면이 관리자 화면인지 계산합니다.
@@ -56,7 +58,7 @@ const isMinimalPage = computed(() => route.meta.layout === 'minimal')
 const activeNavigation = computed(() => {
   const routeName = String(route.name || '')
 
-  if (['menu', 'wf-008', 'wf-009', 'subscribe-menu'].includes(routeName)) {
+  if (['menu', 'wf-008', 'wf-009'].includes(routeName)) {
     return 'menu'
   }
 
@@ -189,6 +191,15 @@ function navigate(view) {
 <style scoped>
 .customer-content {
   flex: 1 0 auto;
+}
+
+/* 공통 헤더가 있는 페이지의 바깥 경계를 한 곳에서 관리합니다. */
+.customer-content:not(.customer-content--minimal)
+  > :deep(:is(.page, .workspace-ui, .account-design, .system-state-page)) {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
 }
 
 .customer-content--minimal {

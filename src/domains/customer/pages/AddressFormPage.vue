@@ -207,6 +207,7 @@ async function saveAddress() {
 .form-field select:focus {
   border-color: var(--color-primary-pressed);
   outline: 3px solid var(--color-primary-soft);
+  outline-offset: -3px;
 }
 
 .form-help,

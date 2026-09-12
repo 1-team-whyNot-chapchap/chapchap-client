@@ -124,7 +124,7 @@ function clear() {
 }
 .file-picker__select:focus-within {
   outline: 3px solid var(--color-primary-pressed);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 .file-picker__selection {
   display: grid;

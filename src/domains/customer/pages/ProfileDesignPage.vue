@@ -427,7 +427,7 @@ const providerLabel = (providers) =>
 .photo-picker:focus-visible,
 .photo-cancel:focus-visible {
   outline: 2px solid var(--color-primary-pressed);
-  outline-offset: 4px;
+  outline-offset: -3px;
 }
 .photo-picker:disabled,
 .photo-cancel:disabled {

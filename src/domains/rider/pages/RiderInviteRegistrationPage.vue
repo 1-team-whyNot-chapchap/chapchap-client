@@ -150,7 +150,7 @@ function submitInvitationCode() {
 }
 .invite-form-card input:focus-visible {
   outline: 3px solid rgba(150, 167, 94, 0.45);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 .form-help {
   margin: 0;

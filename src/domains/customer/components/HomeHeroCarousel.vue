@@ -302,7 +302,7 @@ function handleTouchEnd(event) {
 .home-hero__link:focus-visible,
 .home-hero__indicators button:focus-visible {
   outline: 3px solid #fff;
-  outline-offset: 4px;
+  outline-offset: -3px;
 }
 
 @media (max-width: 760px) {

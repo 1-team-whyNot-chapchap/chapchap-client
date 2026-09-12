@@ -8,7 +8,7 @@ import PageBackButton from '../../../common/components/navigation/PageBackButton
 import StatusBadge from '../../../common/components/feedback/StatusBadge.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import ContentState from '../../../common/components/feedback/ContentState.vue'
-import { datePickerPt } from '../../../common/constants/primeUiPt'
+import { popupDatePickerPt } from '../../../common/constants/primeUiPt'
 import http from '../../../common/api/http.js'
 import { createCustomerDeliveryApi } from '../api/customerDeliveryApi.js'
 
@@ -86,7 +86,7 @@ onBeforeUnmount(() => requestId++)
           :manual-input="false"
           date-format="yy.mm.dd"
           placeholder="전체 기간"
-          :pt="datePickerPt"
+          :pt="popupDatePickerPt"
       /></label>
       <label class="ui-field"
         >배송 상태<select v-model="status">

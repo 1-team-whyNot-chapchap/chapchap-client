@@ -140,6 +140,7 @@ test('role routing and unauthorized route access use current server identity', a
   assert.equal(await guard({ path: '/admin/riders' }), '/')
   assert.equal(await guard({ path: '/rider/deliveries' }), '/')
   assert.equal(await guard({ path: '/mypage' }), true)
+  assert.equal(await guard({ path: '/subscribe/delivery' }), true)
   assert.equal(requiredRoles('/admin/login'), null)
   assert.equal(requiredRoles('/admin/password/initial'), null)
   const failed = createAccessGuard({
@@ -149,6 +150,10 @@ test('role routing and unauthorized route access use current server identity', a
   })
   assert.deepEqual(await failed({ path: '/rider/deliveries' }), {
     path: '/rider/login',
+    query: { reason: 'expired' },
+  })
+  assert.deepEqual(await failed({ path: '/subscribe/delivery' }), {
+    path: '/login',
     query: { reason: 'expired' },
   })
 })

@@ -2,7 +2,7 @@
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import { computed, ref, watch } from 'vue'
 import { CalendarCheck, ChevronRight, Info, RefreshCcw } from 'lucide-vue-next'
-import { useAppStore } from '../../../stores/useAppStore'
+import { useRouter } from 'vue-router'
 import { usePlanStore } from '../../subscription/stores/usePlanStore.js'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 
@@ -14,7 +14,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['navigate'])
-const appStore = useAppStore()
+const router = useRouter()
 const planStore = usePlanStore()
 const unavailableImages = ref(new Set())
 const plan = computed(() => planStore.planById(props.planId))
@@ -42,8 +42,7 @@ watch(
 
 function choosePlan() {
   if (!plan.value) return
-  appStore.beginSubscriptionApplication(plan.value.planId)
-  emit('navigate', 'wf-013')
+  router.push({ name: 'wf-013', query: { planId: plan.value.planId } })
 }
 
 function retryPlan() {
@@ -223,7 +222,7 @@ function hasImage(menu) {
 }
 .catalog-search input:focus-visible {
   outline: 3px solid var(--color-primary-hover);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 .catalog-menu-grid {
   display: grid;

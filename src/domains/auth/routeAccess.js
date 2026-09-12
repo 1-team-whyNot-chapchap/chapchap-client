@@ -26,6 +26,7 @@ export function requiredRoles(path) {
     [
       '/mypage',
       '/subscription',
+      '/subscribe',
       '/payments',
       '/payment',
       '/addresses',
