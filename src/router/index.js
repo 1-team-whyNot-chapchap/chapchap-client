@@ -59,7 +59,6 @@ const DeliveryHistoryPage = () => import('../domains/delivery/pages/DeliveryHist
 const HomePage = () => import('../domains/customer/pages/HomePage.vue')
 const MenuDetailPage = () => import('../domains/product/pages/MenuDetailPage.vue')
 const MenuListPage = () => import('../domains/product/pages/MenuListPage.vue')
-const MenuBuilder = () => import('../domains/subscription/pages/MenuBuilder.vue')
 const MyPage = () => import('../domains/customer/pages/MyPage.vue')
 const NotificationPage = () => import('../domains/customer/pages/NotificationPage.vue')
 const PaymentDetailPage = () => import('../domains/customer/pages/PaymentDetailPage.vue')
@@ -159,12 +158,6 @@ const router = createRouter({
       meta: { layout: 'minimal' },
     },
     { path: '/menu', name: 'menu', component: MenuListPage },
-    {
-      path: '/subscribe/menu',
-      name: 'subscribe-menu',
-      component: MenuBuilder,
-      meta: { layout: 'minimal' },
-    },
     { path: '/plans', name: 'plans', component: PlanPage },
     { path: '/plans/:planId', name: 'plan-detail', component: PlanDetailPage, props: true },
     ...authRoutes,

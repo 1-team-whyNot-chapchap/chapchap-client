@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { Check, X } from 'lucide-vue-next'
 import { useAppStore } from '../../../stores/useAppStore'
 import { usePlanStore } from '../stores/usePlanStore.js'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   isOpen: {
@@ -14,6 +15,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'navigate'])
 const appStore = useAppStore()
 const planStore = usePlanStore()
+const router = useRouter()
 const selectedPlan = ref('')
 const sheet = ref(null)
 const selectedPlanName = computed(
@@ -32,9 +34,7 @@ watch(
       sheet.value?.querySelector('button')?.focus()
       const plans = await planStore.fetchPlans()
       if (!props.isOpen) return
-      selectedPlan.value = plans.some((plan) => plan.planId === appStore.selectedPlan)
-        ? appStore.selectedPlan
-        : plans[0]?.planId || ''
+      selectedPlan.value = plans[0]?.planId || ''
     } else {
       document.body.style.overflow = previousOverflow
       returnFocus?.focus()
@@ -72,8 +72,8 @@ function closeSheet() {
 
 function startSubscription() {
   if (!selectedPlan.value) return
-  appStore.startPlanSelection(selectedPlan.value)
-  emit('navigate', 'wf-013')
+  closeSheet()
+  router.push({ name: 'wf-013', query: { planId: selectedPlan.value } })
 }
 
 async function retryPlans() {
