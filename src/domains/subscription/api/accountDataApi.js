@@ -18,7 +18,7 @@ export function createAccountDataApi(client) {
     } catch (error) {
       throw toSubscriptionApiError(
         error,
-        '저장하지 못했습니다. 입력값과 서비스 가능 지역을 확인한 뒤 다시 시도해 주세요.',
+        '변경하지 못했습니다. 결제수단 상태를 확인한 뒤 다시 시도해 주세요.',
       )
     }
   }
@@ -46,10 +46,6 @@ export function createAccountDataApi(client) {
         deliveryRequest: a.otherDeliveryRequest || '',
       }))
     },
-    saveAddress: (data, id) =>
-      write(id ? 'patch' : 'post', '/addresses' + (id ? '/' + uuid(id) : ''), data),
-    defaultAddress: (id) => write('patch', `/addresses/${uuid(id)}/default`),
-    deleteAddress: (id) => write('delete', `/addresses/${uuid(id)}`),
     async paymentMethods() {
       const result = await get('/payment-methods')
       if (!Array.isArray(result.paymentMethods))

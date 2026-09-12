@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -17,6 +18,23 @@ import PlanSelectionSheet from './domains/subscription/components/PlanSelectionS
 import { useAppStore } from './stores/useAppStore'
 
 const appStore = useAppStore()
+const addressStore = useAddressStore()
+watch(
+  () => authSession.state.user,
+  (user, previous) => {
+    if (
+      user &&
+      previous &&
+      user.email === previous.email &&
+      user.phone === previous.phone &&
+      user.role === previous.role
+    )
+      return
+    addressStore.invalidate()
+    appStore.$reset()
+  },
+  { flush: 'sync' },
+)
 const route = useRoute()
 const router = useRouter()
 

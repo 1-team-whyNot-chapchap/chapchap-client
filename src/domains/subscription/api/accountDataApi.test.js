@@ -55,28 +55,20 @@ test('only documented no-subscription response is empty', async () => {
     else await assert.rejects(api.subscription())
   }
 })
-test('address writes and default card changes use real endpoints without automatic write retry', async () => {
+test('default card writes use the real endpoint without automatic write retry', async () => {
   const calls = []
   const api = createAccountDataApi({
     request: async (arg) => {
       calls.push(arg)
-      return ok({ addressId: id })
+      return ok({ paymentMethodId: id })
     },
   })
-  await api.saveAddress({ name: '테스트' })
-  await api.saveAddress({ name: '수정' }, id)
-  await api.defaultAddress(id)
-  await api.deleteAddress(id)
   await api.defaultPaymentMethod(id)
-  assert.deepEqual(
-    calls.map((c) => c.method),
-    ['post', 'patch', 'patch', 'delete', 'patch'],
-  )
-  assert.ok(calls.every((c) => c.skipAuthRetry === true))
-  assert.equal(calls[4].url, `/api/subscription/payment-methods/${id}/current`)
-  assert.throws(() => api.deleteAddress('local-1'))
+  assert.equal(calls[0].url, `/api/subscription/payment-methods/${id}/current`)
+  assert.equal(calls[0].skipAuthRetry, true)
+  assert.throws(() => api.defaultPaymentMethod('local-1'))
   assert.throws(() => api.detail('orders', '../../other'))
-  assert.equal(calls.length, 5)
+  assert.equal(calls.length, 1)
 })
 test('history detail remains addressable by UUID after a refresh', async () => {
   const api = createAccountDataApi({
