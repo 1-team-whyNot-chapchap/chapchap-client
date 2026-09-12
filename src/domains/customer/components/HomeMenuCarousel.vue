@@ -1,35 +1,128 @@
 <script setup>
 import { ArrowRight } from 'lucide-vue-next'
-import { menuItems, planLabels } from '../../../common/constants/prototypeData'
+import { computed, onMounted, ref } from 'vue'
+import { usePlanStore } from '../../subscription/stores/usePlanStore.js'
+import { getHomeMenuDate, selectHomeMenu } from '../../subscription/homeMenu.js'
 
 const emit = defineEmits(['navigate'])
 
-// 홈 디자인 미리보기용 연결이며, 실제 상품의 플랜 계약으로 사용하지 않습니다.
-const previewMenus = [
-  { menuId: 'menu-03', plan: 'healthy' },
-  { menuId: 'menu-01', plan: 'nutrition' },
-  { menuId: 'menu-02', plan: 'hearty' },
-].map(({ menuId, plan }) => ({
-  ...menuItems.find((menu) => menu.id === menuId),
-  planLabel: planLabels[plan],
-}))
+const planStore = usePlanStore()
+const menuDate = getHomeMenuDate()
+const listLoading = ref(true)
+const failedImages = ref({})
+const unexpectedPlanCount = computed(
+  () => planStore.plans.length > 0 && planStore.plans.length !== 3,
+)
+const cards = computed(() =>
+  planStore.plans.map((plan) => ({
+    planId: plan.planId,
+    planLabel: plan.name,
+    status: planStore.detailStatuses[plan.planId] || 'idle',
+    menu: selectHomeMenu(planStore.details[plan.planId], menuDate.day),
+  })),
+)
+
+async function loadMenus(force = false) {
+  listLoading.value = true
+  try {
+    const plans = await planStore.fetchPlans(force)
+    if (plans.length === 3) {
+      // 상세 조회 상태를 카드별로 표시해 성공한 카드는 계속 보여 준다.
+      const requests = plans.map((plan) => planStore.fetchPlan(plan.planId, force))
+      listLoading.value = false
+      await Promise.all(requests)
+    }
+  } finally {
+    listLoading.value = false
+  }
+}
+
+async function retryPlan(planId) {
+  delete failedImages.value[planId]
+  await planStore.fetchPlan(planId, true)
+}
+
+onMounted(() => loadMenus())
 </script>
 
 <template>
   <section class="home-menu" aria-labelledby="home-menu-title">
     <div class="home-menu__heading">
       <h2 id="home-menu-title">이번 주 챱챱 메뉴</h2>
-      <p>건강식·영양식·든든식의 메뉴를 살펴보세요. 플랜별 구성은 예시입니다.</p>
+      <p>{{ menuDate.label }} 기준 플랜별 메뉴를 살펴보세요.</p>
+      <p>플랜 메뉴 소개이며, 실제 배송 일정은 구독 조건에 따라 달라집니다.</p>
     </div>
 
-    <div class="home-menu__showcase">
-      <article v-for="menu in previewMenus" :key="menu.id" class="home-menu__card">
-        <div class="home-menu__photo">[사진이 필요한 곳입니다.]</div>
+    <div v-if="listLoading" class="home-menu__status" role="status">메뉴를 불러오는 중입니다.</div>
+    <div v-else-if="planStore.listStatus === 'error'" class="home-menu__status" role="alert">
+      <p>플랜 목록을 불러오지 못했습니다.</p>
+      <button class="button button-secondary" type="button" @click="loadMenus(true)">
+        다시 시도
+      </button>
+    </div>
+    <div v-else-if="unexpectedPlanCount" class="home-menu__status" role="alert">
+      <p>플랜 구성을 확인할 수 없습니다. 플랜 전체 보기에서 확인해 주세요.</p>
+      <button class="button button-secondary" type="button" @click="loadMenus(true)">
+        다시 시도
+      </button>
+    </div>
+    <div v-else-if="!cards.length" class="home-menu__status" role="status">
+      새로운 메뉴를 준비하고 있어요.
+    </div>
+    <div v-else class="home-menu__showcase">
+      <article
+        v-for="card in cards"
+        :key="card.planId"
+        class="home-menu__card"
+        :aria-busy="['idle', 'loading'].includes(card.status)"
+      >
+        <div class="home-menu__photo">
+          <img
+            v-if="card.status === 'success' && card.menu?.imageUrl && !failedImages[card.planId]"
+            :src="card.menu.imageUrl"
+            :alt="card.menu.name"
+            loading="lazy"
+            @error="failedImages[card.planId] = true"
+          />
+          <span v-else>{{
+            ['idle', 'loading'].includes(card.status)
+              ? '메뉴를 불러오는 중입니다.'
+              : '메뉴 이미지 준비 중'
+          }}</span>
+        </div>
         <div class="home-menu__content">
-          <span class="home-menu__plan">{{ menu.planLabel }} 플랜</span>
-          <h3>{{ menu.name }}</h3>
-          <p>{{ menu.description }}</p>
-          <strong>{{ menu.nutrition }}</strong>
+          <span class="home-menu__plan">{{ card.planLabel }} 플랜</span>
+          <p v-if="['idle', 'loading'].includes(card.status)" role="status">
+            메뉴 정보를 확인하고 있습니다.
+          </p>
+          <template v-else-if="card.status === 'error'">
+            <p role="alert">이 플랜의 메뉴를 불러오지 못했습니다.</p>
+            <button
+              class="button button-secondary"
+              type="button"
+              :aria-label="`${card.planLabel} 메뉴 다시 시도`"
+              @click="retryPlan(card.planId)"
+            >
+              다시 시도
+            </button>
+          </template>
+          <template v-else-if="!card.menu">
+            <p role="status">기준 날짜에 해당하는 메뉴 정보를 확인할 수 없습니다.</p>
+            <button
+              class="button button-secondary"
+              type="button"
+              :aria-label="`${card.planLabel} 메뉴 다시 확인`"
+              @click="retryPlan(card.planId)"
+            >
+              다시 확인
+            </button>
+          </template>
+          <template v-else>
+            <h3>{{ card.menu.name }}</h3>
+            <p>{{ card.menu.description }}</p>
+            <p>알레르기: {{ card.menu.allergenInfo || '정보 미제공' }}</p>
+            <strong>영양 정보: {{ card.menu.nutritionInfo || '정보 미제공' }}</strong>
+          </template>
         </div>
       </article>
     </div>
@@ -37,9 +130,9 @@ const previewMenus = [
     <button
       class="button button-primary home-menu__more"
       type="button"
-      @click="emit('navigate', 'menu')"
+      @click="emit('navigate', 'plans')"
     >
-      이번 주 메뉴 전체 보기
+      플랜별 메뉴 전체 보기
       <ArrowRight :size="18" aria-hidden="true" />
     </button>
   </section>
@@ -86,6 +179,19 @@ const previewMenus = [
   background: var(--color-primary-soft);
   color: var(--color-text-muted);
   font-size: var(--font-caption);
+  overflow: hidden;
+}
+
+.home-menu__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-menu__status {
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  color: var(--color-text-muted);
 }
 
 .home-menu__content {
