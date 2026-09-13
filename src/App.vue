@@ -5,6 +5,7 @@ import { useCurrentSubscriptionStore } from './domains/subscription/stores/useCu
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
 import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
 import { useSettingChangeStore } from './domains/subscription/stores/useSettingChangeStore.js'
+import { useSubscriptionCancellationStore } from './domains/subscription/stores/useSubscriptionCancellationStore.js'
 import { authSession } from './common/api/http.js'
 import { useRoute, useRouter } from 'vue-router'
 import { CircleUserRound, Home, LayoutDashboard, Package, Salad } from 'lucide-vue-next'
@@ -20,6 +21,7 @@ const currentSubscriptionStore = useCurrentSubscriptionStore()
 const firstSubscriptionStore = useFirstSubscriptionStore()
 const orderStore = useOrderStore()
 const settingChangeStore = useSettingChangeStore()
+const cancellationStore = useSubscriptionCancellationStore()
 watch(
   () => authSession.state.user,
   (user, previous) => {
@@ -37,6 +39,7 @@ watch(
     orderStore.clearSelectedOrder()
     orderStore.$reset()
     settingChangeStore.$reset()
+    cancellationStore.$reset()
     appStore.$reset()
   },
   { flush: 'sync' },
