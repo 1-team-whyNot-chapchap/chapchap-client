@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { CheckCircle2, Info } from 'lucide-vue-next'
-import { DELIVERY_TIME_SLOTS, DELIVERY_WEEKDAY_LABELS } from '../firstSubscriptionForm.js'
+import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { createSettingChangeComparison } from '../settingChangeComparison.js'
+import { useAddressStore } from '../stores/useAddressStore.js'
 import { createSettingChangeRequest } from '../settingChangeForm.js'
 import { useCurrentSubscriptionStore } from '../stores/useCurrentSubscriptionStore.js'
 import { useOrderStore } from '../stores/useOrderStore.js'
@@ -16,13 +18,26 @@ const router = useRouter(),
   changeStore = useSettingChangeStore()
 const preview = computed(() => changeStore.preview),
   result = computed(() => changeStore.result)
-const planName = computed(() => planStore.planById(changeStore.planId)?.name || '선택한 플랜')
+const addressStore = useAddressStore()
+const comparison = computed(() =>
+  currentStore.status === 'success' && addressStore.listStatus === 'success'
+    ? createSettingChangeComparison(
+        currentStore.subscription,
+        changeStore,
+        planStore.plans,
+        addressStore.addresses,
+      )
+    : null,
+)
 const errorMessage = computed(
   () => changeStore.error?.serverMessage || changeStore.error?.message || '',
 )
 const currency = (value) => `${Number(value || 0).toLocaleString('ko-KR')}원`
 const differenceLabel = (type) =>
   ({ INCREASE: '추가 결제', DECREASE: '환불', NO_PRICE_CHANGE: '차액 없음' })[type] || '확인 필요'
+const expectedDifferenceLabel = (type) =>
+  ({ INCREASE: '추가 결제 예상액', DECREASE: '환불 예상액', NO_PRICE_CHANGE: '차액 없음' })[type] ||
+  '확인 필요'
 const actionMessage = (action) =>
   ({
     ADDITIONAL_PAYMENT: '현재 자동결제수단으로 차액을 결제합니다.',
@@ -44,15 +59,8 @@ async function submit() {
 
 <template>
   <section class="workspace-ui setting-confirm-page">
-    <button
-      v-if="!result"
-      class="button button-secondary"
-      type="button"
-      @click="router.push({ name: 'wf-024' })"
-    >
-      설정 변경으로
-    </button>
-    <section v-if="!preview && !result" class="ui-empty">
+    <PageBackButton v-if="!result" to="/subscription/settings" label="설정 변경" />
+    <section v-if="(!preview || !comparison) && !result" class="ui-empty">
       <h1>확인할 변경 내용이 없어요.</h1>
       <button class="button button-primary" type="button" @click="router.push({ name: 'wf-024' })">
         설정 변경하기
@@ -61,50 +69,63 @@ async function submit() {
     <template v-else-if="!result"
       ><header class="ui-heading">
         <div>
-          <h1>변경 내용을 확인하세요.</h1>
-          <p>최종 실행 시 서버가 최신 상태로 다시 계산합니다.</p>
+          <h1>구독 변경 확인</h1>
         </div>
       </header>
       <section class="confirm-card">
-        <h2>변경 설정</h2>
+        <h2>구독 정보</h2>
         <dl>
-          <div>
-            <dt>변경 플랜</dt>
-            <dd>{{ planName }}</dd>
-          </div>
           <div>
             <dt>적용 시작일</dt>
             <dd>{{ preview.effectiveStartDate }}</dd>
           </div>
         </dl>
-        <ul>
-          <li v-for="condition in changeStore.deliveryConditions" :key="condition.weekday">
-            <strong>{{ DELIVERY_WEEKDAY_LABELS[condition.weekday] }}</strong
-            ><span
-              >{{ condition.mealQuantity }}식 ·
-              {{
-                DELIVERY_TIME_SLOTS.find((slot) => slot.value === condition.deliveryTimeSlot)?.label
-              }}</span
-            >
-          </li>
-        </ul>
+        <article v-for="group in comparison" :key="group.key" class="comparison-group">
+          <header v-if="group.key !== 'plan'">
+            <h3>{{ group.title }}</h3>
+            <span v-if="group.status !== 'kept'" class="change-badge">
+              {{ group.status === 'added' ? '추가' : '제외' }}
+            </span>
+          </header>
+          <dl>
+            <div v-for="item in group.fields" :key="item.key">
+              <dt>{{ item.label }}</dt>
+              <dd class="comparison-value">
+                <template v-if="item.changed">
+                  <span v-if="item.before !== null" class="old-value"
+                    ><small>기존</small> <del>{{ item.before }}</del></span
+                  >
+                  <span v-if="item.before !== null && item.after !== null" aria-hidden="true"
+                    >→</span
+                  >
+                  <span v-if="item.after !== null" class="new-value"
+                    ><small>{{ group.status === 'added' ? '추가' : '변경' }}</small>
+                    {{ item.after }}</span
+                  >
+                </template>
+                <span v-else>{{ item.before }}</span>
+              </dd>
+            </div>
+          </dl>
+        </article>
       </section>
       <section class="confirm-card price-card">
-        <h2>서버 계산 결과</h2>
+        <h2>변경 시 예상 금액</h2>
         <dl>
           <div>
-            <dt>기존 주문 금액</dt>
+            <dt>변경 대상 기존 금액</dt>
             <dd>{{ currency(preview.currentAmount) }}</dd>
           </div>
           <div>
-            <dt>변경 후 금액</dt>
+            <dt>변경 후 예상 금액</dt>
             <dd>{{ currency(preview.changedAmount) }}</dd>
           </div>
           <div class="price-total">
-            <dt>{{ differenceLabel(preview.differenceType) }}</dt>
+            <dt>{{ expectedDifferenceLabel(preview.differenceType) }}</dt>
             <dd>{{ currency(preview.differenceAmount) }}</dd>
           </div>
         </dl>
+        <p class="price-notice">변경 확정 시점에 따라 적용일과 예상 금액이 달라질 수 있습니다.</p>
       </section>
       <aside class="ui-note">
         <Info :size="20" aria-hidden="true" />
@@ -187,23 +208,60 @@ async function submit() {
   font-weight: 800;
   text-align: right;
 }
-.confirm-card ul {
-  display: grid;
-  gap: 9px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.comparison-group {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
 }
-.confirm-card li {
+.comparison-group header {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px;
-  border-radius: 11px;
-  background: var(--color-surface-subtle);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
 }
-.confirm-card li span {
+.comparison-group h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.comparison-group dt {
+  flex: 0 0 90px;
+}
+.comparison-group dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.comparison-value {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.comparison-value small {
+  font-size: var(--font-caption);
+  font-weight: 500;
+}
+.old-value {
   color: var(--color-text-muted);
+  font-weight: 500;
+}
+.new-value {
+  color: var(--color-primary-pressed);
+}
+.change-badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-pressed);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+.price-notice {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-caption);
+  line-height: 1.6;
 }
 .price-total dt,
 .price-total dd {
@@ -220,14 +278,19 @@ async function submit() {
   color: var(--color-primary-pressed);
 }
 @media (max-width: 540px) {
-  .confirm-card dl div,
-  .confirm-card li {
+  .confirm-card dl div {
     align-items: flex-start;
     flex-direction: column;
     gap: 6px;
   }
   .confirm-card dd {
     text-align: left;
+  }
+  .comparison-group dt {
+    flex-basis: auto;
+  }
+  .comparison-value {
+    justify-content: flex-start;
   }
 }
 </style>
