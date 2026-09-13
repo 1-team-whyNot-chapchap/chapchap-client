@@ -11,10 +11,11 @@ const assignments = ref([])
 const loadError = ref('')
 const actionNotice = ref('')
 const acknowledging = ref(false)
+const deliveryDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
 async function load() {
   loadError.value = ''
   try {
-    assignments.value = (await api.listAssignments()).items
+    assignments.value = (await api.listAssignments({ deliveryDate })).items
   } catch (error) {
     assignments.value = []
     loadError.value = error.message || '배정 목록을 불러오지 못했습니다.'
@@ -25,6 +26,9 @@ const acknowledgeableAssignments = computed(() =>
   assignments.value.filter((assignment) => assignment.status === 'ASSIGNED'),
 )
 const canAcknowledge = computed(() => acknowledgeableAssignments.value.length > 0)
+const reportableAssignment = computed(() =>
+  assignments.value.find((assignment) => ['ASSIGNED', 'ACKNOWLEDGED'].includes(assignment.status)),
+)
 async function acknowledgeAll() {
   if (!canAcknowledge.value || acknowledging.value) return
 
@@ -118,7 +122,17 @@ const status = computed(() => statusLabel[assignments.value[0]?.status] || '배�
         <p v-if="!assignments.length" class="ui-empty">배정된 배송이 없어요.</p>
       </section>
       <div class="rider-wire-actions">
-        <RouterLink class="button button-secondary" to="/rider/issues">이슈 제기</RouterLink>
+        <RouterLink
+          v-if="reportableAssignment"
+          class="button button-secondary"
+          :to="{
+            name: 'rider-issue',
+            query: { assignmentId: reportableAssignment.assignmentId },
+          }"
+        >
+          이슈 제기
+        </RouterLink>
+        <button v-else class="button button-secondary" type="button" disabled>이슈 제기</button>
         <button
           class="button button-primary"
           type="button"
