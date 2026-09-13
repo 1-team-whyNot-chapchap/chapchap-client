@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import Dialog from 'primevue/dialog'
 import { MapPin } from 'lucide-vue-next'
@@ -8,10 +8,12 @@ import DesignPreview from '../../../common/components/feedback/DesignPreview.vue
 import { dialogPt } from '../../../common/constants/primeUiPt'
 import http from '../../../common/api/http.js'
 import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
+import { assignmentIssueOptions } from '../constants/assignmentIssueOptions.js'
 const route = useRoute()
 const assignment = ref(null)
 const loading = ref(false)
 const isIssueOpen = ref(false)
+const issueCode = ref('')
 const issue = ref('')
 const notice = ref('')
 const api = createDeliveryExecutionApi(http)
@@ -29,6 +31,7 @@ const deliveryStatusLabel = {
   FAILED: '배송 실패',
 }
 const slotLabel = { LUNCH: '점심', DINNER: '저녁' }
+const isOtherIssue = computed(() => issueCode.value === 'OTHER')
 async function load() {
   loading.value = true
   notice.value = ''
@@ -51,15 +54,16 @@ async function confirm() {
   }
 }
 async function saveIssue() {
-  if (!issue.value.trim()) return
+  if (!issueCode.value || (isOtherIssue.value && !issue.value.trim())) return
   try {
     await api.reportAssignmentIssue(route.params.assignmentId, {
-      issueCode: 'OTHER',
-      issueDetail: issue.value.trim(),
+      issueCode: issueCode.value,
+      issueDetail: issue.value.trim() || null,
     })
     await load()
     isIssueOpen.value = false
     notice.value = '배정 이슈를 보고했습니다.'
+    issueCode.value = ''
     issue.value = ''
   } catch (failure) {
     notice.value = failure.message || '이슈를 보고하지 못했습니다.'
@@ -154,9 +158,24 @@ onMounted(load)
       :pt="dialogPt"
       ><form class="ui-stack" @submit.prevent="saveIssue">
         <p>{{ assignment?.deliveryDate }} · {{ slotLabel[assignment?.deliverySlot] }} 배정</p>
-        <label class="ui-field">이슈 내용<textarea v-model="issue" rows="4" required /></label>
+        <label class="ui-field">이슈 유형<select v-model="issueCode" required>
+          <option disabled value="">선택해 주세요</option>
+          <option v-for="option in assignmentIssueOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select></label>
+        <label class="ui-field">상황 설명{{ isOtherIssue ? '' : ' (선택)' }}<textarea
+          v-model="issue"
+          rows="4"
+          :required="isOtherIssue"
+          :placeholder="isOtherIssue ? '기타 사유를 입력해 주세요.' : '운영팀에 전달할 내용을 입력해 주세요.'"
+        /></label>
         <p class="ui-muted">보고 내용은 운영팀의 배정 이슈 처리 대상으로 등록됩니다.</p>
-        <button class="button button-primary" type="submit" :disabled="!issue.trim()">
+        <button
+          class="button button-primary"
+          type="submit"
+          :disabled="!issueCode || (isOtherIssue && !issue.trim())"
+        >
           이슈 보고
         </button>
       </form></Dialog

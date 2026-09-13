@@ -20,6 +20,7 @@ const loading = ref(false)
 const panel = ref('')
 const method = ref('')
 const place = ref('')
+const customPlace = ref('')
 const contacted = ref(false)
 const contactedAt = ref('')
 const contactResult = ref('')
@@ -42,15 +43,35 @@ const hasDelivering = computed(() =>
   assignment.value?.deliveries.some((item) => item.status === 'DELIVERING'),
 )
 const finished = computed(() => ['DELIVERED', 'FAILED'].includes(delivery.value?.status))
+const storageLocation = computed(() =>
+  place.value === '기타' ? customPlace.value.trim() : place.value,
+)
+const deliverySummary = computed(() =>
+  [delivery.value?.recipientName, delivery.value?.addressLine1].filter(Boolean).join(' · '),
+)
 const canComplete = computed(
   () =>
     method.value === '직접 전달' ||
     (method.value === '비대면 전달' &&
-      place.value.trim() &&
+      storageLocation.value &&
       photo.value &&
       (delivery.value?.requestedHandoffType !== 'DIRECT' ||
         (contacted.value && contactedAt.value && contactResult.value.trim()))),
 )
+const completionRequirementMessage = computed(() => {
+  if (method.value === '직접 전달') return ''
+
+  const missing = []
+  if (!storageLocation.value) missing.push('보관 위치')
+  if (!photo.value) missing.push('완료 사진')
+  if (delivery.value?.requestedHandoffType === 'DIRECT') {
+    if (!contactedAt.value) missing.push('연락 시도 시각')
+    if (!contactResult.value.trim()) missing.push('연락 결과')
+    if (!contacted.value) missing.push('연락 시도 확인')
+  }
+
+  return missing.length ? `완료 반영을 위해 ${missing.join(', ')}을 입력해 주세요.` : ''
+})
 
 async function load() {
   if (!route.query.assignmentId) {
@@ -85,6 +106,7 @@ async function start() {
 function openComplete() {
   method.value = handoffLabel[delivery.value.requestedHandoffType] || '비대면 전달'
   place.value = ''
+  customPlace.value = ''
   photo.value = null
   photoError.value = ''
   contacted.value = false
@@ -111,11 +133,11 @@ async function complete() {
       delivery.value.deliveryId,
       {
         actualHandoffType: method.value === '직접 전달' ? 'DIRECT' : 'DOORSTEP',
-        storageLocation: place.value.trim() || null,
+        storageLocation: method.value === '직접 전달' ? null : storageLocation.value,
         contactAttemptedAt: contactedAt.value ? new Date(contactedAt.value).toISOString() : null,
         contactResult: contactResult.value ? 'CONTACTED' : null,
       },
-      photo.value,
+      method.value === '직접 전달' ? null : photo.value,
     )
     await load()
     panel.value = ''
@@ -249,16 +271,34 @@ onMounted(load)
       @update:visible="panel = ''"
     >
       <form class="ui-stack" @submit.prevent="complete">
-        <p>{{ delivery?.recipientName }} · {{ delivery?.addressLine1 }}</p>
+        <p v-if="deliverySummary">{{ deliverySummary }}</p>
         <label class="ui-field"
           >전달 방식<select v-model="method">
             <option>직접 전달</option>
             <option>비대면 전달</option>
           </select></label
         >
-        <template v-if="method === '비대면 전달'"
-          ><label class="ui-field">보관 위치<textarea v-model="place" rows="2" required /></label
-          ><FilePicker
+        <template v-if="method === '비대면 전달'">
+          <label class="ui-field">
+            보관 위치
+            <select v-model="place" required>
+              <option disabled value="">선택해 주세요</option>
+              <option>현관문 앞</option>
+              <option>경비실</option>
+              <option>무인보관함</option>
+              <option>기타</option>
+            </select>
+          </label>
+          <label v-if="place === '기타'" class="ui-field">
+            보관 위치 직접 입력
+            <input
+              v-model="customPlace"
+              required
+              maxlength="100"
+              placeholder="예: 지하 1층 공동현관 우편함 앞"
+            />
+          </label>
+          <FilePicker
             v-model="photo"
             label="완료 사진"
             accept=".jpg,.jpeg,.png,.webp"
@@ -267,20 +307,26 @@ onMounted(load)
             :disabled="submitting"
             @change="selectPhoto"
           />
-          <p v-if="photo" class="ui-muted">{{ photo.name }} · 업로드하지 않음</p>
+          <p v-if="photo" class="ui-muted">
+            {{ photo.name }} · 선택됨 (완료 반영 시 업로드됩니다.)
+          </p>
           <p v-if="photoError" class="ui-error" role="alert">{{ photoError }}</p>
-          <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-field"
-            >연락 시도 시각<input v-model="contactedAt" type="datetime-local" required
-          /></label>
-          <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-field"
-            >연락 결과<input v-model="contactResult" required placeholder="예: 응답 없음"
-          /></label>
-          <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-check"
-            ><input v-model="contacted" type="checkbox" required />연락을 시도했으나 직접 전달할 수
-            없었어요.</label
-          ></template
-        >
-        <p class="ui-muted">실제 처리 시 사진·보관 위치·연락 결과를 서버에서 검증합니다.</p>
+          <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-field">
+            연락 시도 시각
+            <input v-model="contactedAt" type="datetime-local" required />
+          </label>
+          <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-field">
+            연락 결과
+            <input v-model="contactResult" required placeholder="예: 응답 없음" />
+          </label>
+          <label v-if="delivery?.requestedHandoffType === 'DIRECT'" class="ui-check">
+            <input v-model="contacted" type="checkbox" required />연락을 시도했으나 직접 전달할 수
+            없었어요.
+          </label>
+        </template>
+        <p v-if="completionRequirementMessage" class="ui-muted">
+          {{ completionRequirementMessage }}
+        </p>
         <button class="button button-primary" type="submit" :disabled="!canComplete || submitting">
           완료 반영
         </button>
@@ -294,7 +340,7 @@ onMounted(load)
       :pt="dialogPt"
       @update:visible="panel = ''"
       ><form class="ui-stack" @submit.prevent="fail">
-        <p>{{ delivery?.recipientName }} · {{ delivery?.addressLine1 }}</p>
+        <p v-if="deliverySummary">{{ deliverySummary }}</p>
         <label class="ui-field">실패 사유<textarea v-model="failure" rows="4" required /></label>
         <button
           class="button button-primary"

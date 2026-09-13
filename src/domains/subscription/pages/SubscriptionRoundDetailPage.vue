@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronLeft, PackageCheck } from 'lucide-vue-next'
+import { PackageCheck } from 'lucide-vue-next'
+import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import { deliveryTimeSlotLabel } from '../currentSubscriptionDisplay.js'
 import { useOrderStore } from '../stores/useOrderStore.js'
 
@@ -44,10 +45,7 @@ function backToOrders() {
 
 <template>
   <div class="page order-detail workspace-ui design-review-page">
-    <button class="page-back" type="button" @click="backToOrders">
-      <ChevronLeft :size="18" aria-hidden="true" />
-      <span>주문 내역</span>
-    </button>
+    <PageBackButton label="주문 일정" @back="backToOrders" />
 
     <section
       v-if="orderStore.detailStatus === 'loading' || orderStore.detailStatus === 'idle'"
@@ -71,7 +69,7 @@ function backToOrders() {
       <header class="order-detail__header">
         <p class="section-kicker">{{ order.deliveryDate }}</p>
         <div>
-          <h1>배송 예정 주문</h1>
+          <h1>주문 상세</h1>
           <span class="mini-badge">{{ orderStatuses[order.status] || '상태 확인 필요' }}</span>
         </div>
         <strong>{{ formatAmount(order.amount) }}</strong>
@@ -91,7 +89,7 @@ function backToOrders() {
       </section>
 
       <section class="detail-card">
-        <h2>메뉴 안내</h2>
+        <h2>메뉴</h2>
         <dl>
           <div>
             <dt>알레르기</dt>
@@ -109,7 +107,7 @@ function backToOrders() {
       </section>
 
       <section class="detail-card">
-        <h2>배송지 스냅샷</h2>
+        <h2>배송지</h2>
         <dl>
           <div>
             <dt>수령인</dt>
