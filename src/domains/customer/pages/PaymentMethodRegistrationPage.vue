@@ -1,11 +1,17 @@
 <script setup>
-import UnavailableFeature from '../../../common/components/feedback/UnavailableFeature.vue'
+import PaymentMethodPanel from '../../subscription/components/PaymentMethodPanel.vue'
 </script>
 <template>
-  <UnavailableFeature
-    title="카드 등록"
-    description="카드 등록 연결을 준비하고 있어요. 준비가 완료되면 결제사의 보안 화면에서 등록할 수 있습니다."
-    to="/mypage/payment-methods"
-    action="결제수단으로"
-  />
+  <div class="workspace-ui design-review-page">
+    <RouterLink class="button button-outline" to="/mypage/payment-methods"
+      >결제수단 목록으로</RouterLink
+    >
+    <header class="ui-heading">
+      <div>
+        <h1>카드 등록</h1>
+        <p>카드를 추가하고 결제에 사용할 수단을 선택하세요.</p>
+      </div>
+    </header>
+    <PaymentMethodPanel />
+  </div>
 </template>

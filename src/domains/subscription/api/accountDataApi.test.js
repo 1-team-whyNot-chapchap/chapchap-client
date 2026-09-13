@@ -79,3 +79,44 @@ test('history detail remains addressable by UUID after a refresh', async () => {
   })
   assert.equal((await api.detail('orders', id)).orderId, id)
 })
+
+test('billing registration and deletion use documented payloads and never auto-replay', async () => {
+  const calls = []
+  const api = createAccountDataApi({
+    request: async (request) => {
+      calls.push(request)
+      return ok({ paymentMethodId: id, isCurrent: true })
+    },
+  })
+  await api.registerPaymentMethod('test-billing-reference')
+  await api.deletePaymentMethod(id)
+  assert.deepEqual(calls, [
+    {
+      method: 'post',
+      url: '/api/subscription/payment-methods',
+      data: { billingKey: 'test-billing-reference' },
+      skipAuthRetry: true,
+    },
+    {
+      method: 'delete',
+      url: `/api/subscription/payment-methods/${id}`,
+      data: undefined,
+      skipAuthRetry: true,
+    },
+  ])
+  for (const invalid of [undefined, null, '', '  '])
+    assert.throws(() => api.registerPaymentMethod(invalid))
+  assert.throws(() => api.deletePaymentMethod('../../other'))
+})
+
+test('payment method deletion restrictions remain identifiable to the UI', async () => {
+  const api = createAccountDataApi({
+    request: async () => {
+      throw { response: { status: 409, data: { code: 'PAYMENT_006' } } }
+    },
+  })
+  await assert.rejects(
+    api.deletePaymentMethod(id),
+    (e) => e.code === 'PAYMENT_006' && e.status === 409,
+  )
+})

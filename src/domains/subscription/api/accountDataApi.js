@@ -58,7 +58,13 @@ export function createAccountDataApi(client) {
         isDefault: c.isCurrent,
       }))
     },
+    registerPaymentMethod: (billingKey) => {
+      if (typeof billingKey !== 'string' || !billingKey.trim())
+        throw new Error('카드 발급 결과를 확인할 수 없습니다.')
+      return write('post', '/payment-methods', { billingKey })
+    },
     defaultPaymentMethod: (id) => write('patch', `/payment-methods/${uuid(id)}/current`),
+    deletePaymentMethod: (id) => write('delete', `/payment-methods/${uuid(id)}`),
     async subscription() {
       const response = await client.get(root + '/subscriptions')
       // CurrentSubscriptionQueryService explicitly returns null when no subscription exists.
