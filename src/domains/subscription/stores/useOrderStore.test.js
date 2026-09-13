@@ -3,6 +3,96 @@ import assert from 'node:assert/strict'
 import { createPinia, setActivePinia } from 'pinia'
 import { createOrderStore, ORDER_DETAIL_STORAGE_KEY } from './useOrderStore.js'
 
+function deferred() {
+  let resolve, reject
+  const promise = new Promise((ok, fail) => {
+    resolve = ok
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
+for (const fails of [false, true]) {
+  test(`주문 목록 초기화 이후 이전 계정 응답(${fails ? '실패' : '성공'})을 무시한다`, async () => {
+    setActivePinia(createPinia())
+    const old = deferred()
+    let calls = 0
+    const store = createOrderStore(
+      { listOrders: () => (++calls === 1 ? old.promise : Promise.resolve([])) },
+      createStorage(),
+    )()
+    const pending = store.fetchOrders()
+    store.$reset()
+    await store.fetchOrders()
+    if (fails) old.reject(new Error('old account'))
+    else old.resolve([{ orderId: ORDER_ID }])
+    await pending
+    assert.deepEqual(store.orders, [])
+    assert.equal(store.listStatus, 'empty')
+    assert.equal(store.listError, null)
+  })
+}
+
+test('강제 주문 재조회 중 늦은 응답이 최신 결과를 덮어쓰지 않는다', async () => {
+  setActivePinia(createPinia())
+  const old = deferred()
+  let calls = 0
+  const orders = [{ orderId: ORDER_ID, status: 'ACTIVE', deliveryDate: '2026-09-16' }]
+  const store = createOrderStore(
+    { listOrders: () => (++calls === 1 ? old.promise : Promise.resolve(orders)) },
+    createStorage(),
+  )()
+  const pending = store.fetchOrders()
+  await store.fetchOrders(true)
+  old.resolve([])
+  await pending
+  assert.deepEqual(store.orders, orders)
+  assert.equal(store.listStatus, 'success')
+})
+
+test('주문 목록 실패와 재시도 및 빈 결과를 구분한다', async () => {
+  setActivePinia(createPinia())
+  let calls = 0
+  const store = createOrderStore(
+    {
+      listOrders: async () => {
+        if (++calls === 1) throw new Error('temporary')
+        return []
+      },
+    },
+    createStorage(),
+  )()
+  await store.fetchOrders()
+  assert.equal(store.listStatus, 'error')
+  await store.fetchOrders(true)
+  assert.equal(store.listStatus, 'empty')
+  assert.equal(store.listError, null)
+})
+
+for (const operation of ['reset', 'clear', 'select']) {
+  test(`주문 상세 조회 중 ${operation} 뒤 이전 상세 응답이 표시되지 않는다`, async () => {
+    setActivePinia(createPinia())
+    const old = deferred()
+    const nextId = '660e8400-e29b-41d4-a716-446655440000'
+    const store = createOrderStore(
+      { getOrder: (id) => (id === ORDER_ID ? old.promise : Promise.resolve({ orderId: nextId })) },
+      createStorage(),
+    )()
+    store.selectOrder(ORDER_ID)
+    const pending = store.fetchSelectedOrder()
+    if (operation === 'reset') store.$reset()
+    if (operation === 'clear') store.clearSelectedOrder()
+    if (operation === 'select') {
+      store.selectOrder(nextId)
+      await store.fetchSelectedOrder()
+    }
+    old.resolve({ orderId: ORDER_ID })
+    await pending
+    assert.equal(store.detail?.orderId ?? null, operation === 'select' ? nextId : null)
+    assert.equal(store.detailStatus, operation === 'select' ? 'success' : 'idle')
+  })
+}
+
 const ORDER_ID = '550e8400-e29b-41d4-a716-446655440000'
 
 function createStorage() {
