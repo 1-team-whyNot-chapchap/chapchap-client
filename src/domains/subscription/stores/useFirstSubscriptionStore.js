@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { firstSubscriptionApi } from '../api/firstSubscriptionApi.js'
-import { createDeliveryCondition } from '../firstSubscriptionForm.js'
+import {
+  createDeliveryCondition,
+  createFirstSubscriptionRequest,
+} from '../firstSubscriptionForm.js'
 
 export function createFirstSubscriptionStore(
   api = firstSubscriptionApi,
@@ -16,6 +19,7 @@ export function createFirstSubscriptionStore(
       termsRequest: null,
       agreementRequest: null,
       termsConfirmed: false,
+      mobileAcceptedTerms: null,
       preview: null,
       previewRequest: null,
       result: null,
@@ -28,6 +32,13 @@ export function createFirstSubscriptionStore(
       activeStep: null,
     }),
     actions: {
+      restoreMobileDraft(draft) {
+        const request = createFirstSubscriptionRequest(draft.planId, draft.deliveryConditions)
+        this.$reset()
+        this.planId = request.planId
+        this.deliveryConditions = request.deliveryConditions
+        this.mobileAcceptedTerms = Array.isArray(draft.acceptedTerms) ? draft.acceptedTerms : []
+      },
       clearError() {
         this.error = null
         this.errorStep = null
@@ -105,6 +116,21 @@ export function createFirstSubscriptionStore(
             this.requiredTerms.map((term) => [term.termsType, false]),
           )
           this.termsStatus = 'success'
+          if (this.mobileAcceptedTerms) {
+            const accepted = this.mobileAcceptedTerms
+            this.mobileAcceptedTerms = null
+            if (
+              accepted.length === terms.length &&
+              terms.every((term) =>
+                accepted.some(
+                  (old) => old.termsType === term.termsType && old.version === term.version,
+                ),
+              )
+            ) {
+              this.agreedTerms = Object.fromEntries(terms.map((term) => [term.termsType, true]))
+              this.termsConfirmed = true
+            }
+          }
         } catch (error) {
           if (this.termsRequest !== pending) return []
           this.requiredTerms = []

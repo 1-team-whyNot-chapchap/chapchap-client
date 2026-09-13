@@ -3,6 +3,8 @@ import { computed, watch } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
 import { useCurrentSubscriptionStore } from './domains/subscription/stores/useCurrentSubscriptionStore.js'
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
+import { billingUserId } from './domains/subscription/mobileBillingContext.js'
+import { clearMobileBilling } from './domains/subscription/mobileBillingReturn.js'
 import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
 import { useSettingChangeStore } from './domains/subscription/stores/useSettingChangeStore.js'
 import { useSubscriptionCancellationStore } from './domains/subscription/stores/useSubscriptionCancellationStore.js'
@@ -22,6 +24,17 @@ const firstSubscriptionStore = useFirstSubscriptionStore()
 const orderStore = useOrderStore()
 const settingChangeStore = useSettingChangeStore()
 const cancellationStore = useSubscriptionCancellationStore()
+// Only subscription's mobile registration state is handled here; other domain resets stay unchanged.
+watch(
+  () => billingUserId(authSession.state.user),
+  (userId, previous) => {
+    if (previous && previous !== userId) {
+      clearMobileBilling()
+      firstSubscriptionStore.$reset()
+    }
+  },
+  { flush: 'sync' },
+)
 watch(
   () => authSession.state.user,
   (user, previous) => {

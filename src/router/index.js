@@ -4,6 +4,13 @@ import { pageCatalog } from './pageCatalog'
 import { authSession } from '../common/api/http.js'
 import { createAccessGuard } from '../domains/auth/routeAccess.js'
 import { loginPath } from '../domains/auth/authSession.js'
+import { BILLING_CALLBACK_PATH } from '../domains/subscription/mobileBillingContext.js'
+import {
+  captureMobileBillingReturn,
+  clearMobileBilling,
+} from '../domains/subscription/mobileBillingReturn.js'
+
+captureMobileBillingReturn()
 
 // 서버의 /auth/callback 리다이렉트를 hash router 경로로 변환한다.
 // 전달받은 문자열로 외부 이동 경로를 만들지 않는다.
@@ -197,6 +204,12 @@ const router = createRouter({
     { path: '/mypage/addresses', name: 'wf-028', component: AddressListPage },
     { path: '/mypage/addresses/new', name: 'wf-029', component: AddressFormPage },
     { path: '/mypage/payment-methods', name: 'wf-030', component: PaymentMethodListPage },
+    {
+      path: BILLING_CALLBACK_PATH,
+      name: 'subscription-payment-method-callback',
+      component: () => import('../domains/subscription/pages/PaymentMethodCallbackPage.vue'),
+      meta: { layout: 'minimal' },
+    },
     {
       path: '/mypage/payment-methods/register',
       name: 'payment-method-register',
@@ -565,7 +578,16 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(createAccessGuard(authSession))
+const accessGuard = createAccessGuard(authSession)
+router.beforeEach(async (to, from) => {
+  const result = await accessGuard(to)
+  if (
+    (to.path === BILLING_CALLBACK_PATH && result !== true) ||
+    (from.path === BILLING_CALLBACK_PATH && to.path !== BILLING_CALLBACK_PATH && result !== true)
+  )
+    clearMobileBilling()
+  return result
+})
 authSession.onExpired(() => {
   const path = router.currentRoute.value.path
   if (path !== '/auth/callback' && !path.endsWith('/login'))

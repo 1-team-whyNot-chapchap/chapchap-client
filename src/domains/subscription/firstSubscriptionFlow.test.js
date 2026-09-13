@@ -6,6 +6,7 @@ import { createRenderer, h, reactive, nextTick, watch } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createFirstSubscriptionStore } from './stores/useFirstSubscriptionStore.js'
 import { createAddressStore } from './stores/useAddressStore.js'
+import { billingUserId } from './mobileBillingContext.js'
 
 // 실제 신청 컴포넌트와 저장소를 메모리에서 실행한다. HTTP·결제 호출은 하지 않는다.
 const sourceUrl = new URL('./pages/SubscriptionFlowPage.vue', import.meta.url)
@@ -268,10 +269,12 @@ test('실제 App의 기존 감시 코드: 로그아웃과 계정 교체는 신�
   const watcher = appSource.slice(appSource.indexOf('watch('), appSource.indexOf('const route ='))
   setActivePinia(createPinia())
   const store = createFirstSubscriptionStore({}, 'app-reset-test')()
-  const user = { email: 'a@example.test', phone: 'test-a', role: 'CUSTOMER' }
+  const user = { userId: '1', email: 'a@example.test', phone: 'test-a', role: 'CUSTOMER' }
   const session = { state: reactive({ user }) }
   const noop = { invalidate() {}, $reset() {}, clearSelectedOrder() {} }
-  const stop = new Function(
+  const stops = []
+  let cleared = 0
+  new Function(
     'watch',
     'authSession',
     'addressStore',
@@ -281,8 +284,28 @@ test('실제 App의 기존 감시 코드: 로그아웃과 계정 교체는 신�
     'settingChangeStore',
     'cancellationStore',
     'appStore',
-    `return ${watcher}`,
-  )(watch, session, noop, noop, store, noop, noop, noop, noop)
+    'billingUserId',
+    'clearMobileBilling',
+    watcher,
+  )(
+    (...args) => {
+      const stop = watch(...args)
+      stops.push(stop)
+      return stop
+    },
+    session,
+    noop,
+    noop,
+    store,
+    noop,
+    noop,
+    noop,
+    noop,
+    billingUserId,
+    () => {
+      cleared++
+    },
+  )
   try {
     store.begin(PLAN)
     store.setDeliveryWeekdays(['MONDAY'])
@@ -290,14 +313,20 @@ test('실제 App의 기존 감시 코드: 로그아웃과 계정 교체는 신�
     assert.equal(store.deliveryConditions.length, 1)
     session.state.user = null
     assert.equal(store.deliveryConditions.length, 0)
+    assert.equal(cleared, 1)
     session.state.user = user
     store.begin(PLAN)
     store.setDeliveryWeekdays(['TUESDAY'])
     session.state.user = { ...user, email: 'b@example.test', phone: 'test-b' }
     assert.equal(store.planId, '')
     assert.deepEqual(store.deliveryConditions, [])
+    store.begin(PLAN)
+    store.setDeliveryWeekdays(['MONDAY'])
+    session.state.user = { ...session.state.user, userId: '2' }
+    assert.equal(store.planId, '')
+    assert.equal(cleared, 2)
   } finally {
-    stop()
+    stops.forEach((stop) => stop())
   }
 })
 
