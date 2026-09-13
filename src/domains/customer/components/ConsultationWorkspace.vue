@@ -7,6 +7,7 @@ import { useCustomerRequest } from '../useCustomerRequest.js'
 import RequestStatus from './RequestStatus.vue'
 import ConsultationHandoffSummary from './ConsultationHandoffSummary.vue'
 import CustomerChatView from './CustomerChatView.vue'
+import AdminConsultationQueue from '../../admin/components/AdminConsultationQueue.vue'
 import http, { authSession } from '../../../common/api/http.js'
 import { createConsultationConnection } from '../realtime/consultationConnection.js'
 import { createConsultationHistorySync } from '../realtime/consultationHistory.js'
@@ -355,54 +356,45 @@ onMounted(() => {
         /></label
       ><button class="button button-primary" :disabled="busy || !draft.trim()">새 상담 시작</button>
     </form>
-    <div :class="detail ? 'ui-stack' : 'ui-grid'">
-      <aside v-if="!detail" class="ui-surface ui-stack">
-        <h2>{{ admin ? '연결 대기 상담' : '내 상담' }}</h2>
-        <article v-for="row in rows" :key="row.consultationId" class="ui-stack">
-          <h3>상담 #{{ row.consultationId }}</h3>
-          <p>{{ states[row.status] }} · {{ displayDateTime(row.createdAt) }}</p>
-          <button
-            class="button button-secondary"
-            :disabled="busy"
-            @click="admin ? accept(row) : open(row.consultationId)"
-          >
-            {{ admin ? '수락하고 연결' : '대화 보기' }}
-          </button>
-        </article>
-        <p v-if="!busy && !error && !rows.length">상담이 없습니다.</p>
-        <template v-if="admin"
-          ><h2>내 담당 상담</h2>
-          <RouterLink
-            v-for="row in assigned"
-            :key="row.consultationId"
-            class="button button-secondary"
-            :to="`/admin/consultations/${row.consultationId}`"
-            >#{{ row.consultationId }} · {{ states[row.status] }}</RouterLink
-          ></template
-        >
-      </aside>
-      <article v-if="selected" class="ui-surface ui-stack">
-        <h2>상담 #{{ selected.consultationId }} · {{ states[selected.status] }}</h2>
-        <div class="ui-actions">
-          <button
-            v-if="!admin && selected.status === 'AI_HANDLING'"
-            class="button button-secondary"
-            :disabled="busy"
-            @click="handoff"
-          >
-            관리자 연결 요청</button
-          ><button
-            v-if="admin && selected.status === 'IN_PROGRESS'"
-            class="button button-secondary"
-            :disabled="busy"
-            @click="confirmingClose = true"
-          >
-            상담 종료
-          </button>
-        </div>
+    <div class="ui-stack">
+      <AdminConsultationQueue
+        v-if="!detail"
+        :rows="rows"
+        :assigned="assigned"
+        :busy="busy"
+        :error="error"
+        :states="states"
+        @accept="accept"
+      />
+      <article v-if="selected" class="admin-conversation">
+        <header class="conversation-header">
+          <div class="conversation-title">
+            <h2>상담 #{{ selected.consultationId }}</h2>
+            <span class="conversation-status">{{
+              states[selected.status] || '상태 확인 필요'
+            }}</span>
+          </div>
+          <div class="ui-actions">
+            <button
+              v-if="!admin && selected.status === 'AI_HANDLING'"
+              class="button button-secondary"
+              :disabled="busy"
+              @click="handoff"
+            >
+              관리자 연결 요청</button
+            ><button
+              v-if="admin && selected.status === 'IN_PROGRESS'"
+              class="button button-secondary"
+              :disabled="busy"
+              @click="confirmingClose = true"
+            >
+              상담 종료
+            </button>
+          </div>
+        </header>
         <div
           v-if="confirmingClose && selected.status === 'IN_PROGRESS'"
-          class="ui-stack"
+          class="ui-stack conversation-confirm"
           role="group"
           aria-label="상담 종료 확인"
         >
@@ -418,56 +410,271 @@ onMounted(() => {
             </button>
           </div>
         </div>
-        <ConsultationHandoffSummary
-          v-if="admin"
-          :key="selected.consultationId"
-          :consultation-id="selected.consultationId"
-        />
-        <ol class="ui-list" aria-label="대화 내용" style="max-height: 55vh; overflow-y: auto">
-          <li v-for="message in messages" :key="message.messageId" class="ui-list-item">
-            <div>
-              <strong>{{
-                { USER: '고객', ADMIN: '관리자', AI: '상담 도우미', SYSTEM: '안내' }[
-                  message.senderType
-                ] || '상담'
-              }}</strong>
-              <p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ message.content }}</p>
-              <time :datetime="message.createdAt" :title="message.createdAt">{{
-                displayDateTime(message.createdAt)
-              }}</time>
-            </div>
-          </li>
-        </ol>
-        <p role="status">{{ connectionLabels[connectionState] }}</p>
-        <button
-          v-if="selected.status !== 'CLOSED' && ['failed', 'closed'].includes(connectionState)"
-          class="button button-secondary"
-          @click="connectConversation"
-        >
-          다시 연결
-        </button>
-        <form
-          v-if="['AI_HANDLING', 'IN_PROGRESS'].includes(selected.status)"
-          class="ui-stack"
-          @submit.prevent="sendMessage"
-        >
-          <label class="ui-field"
-            >메시지<textarea
-              v-model="messageDraft"
-              rows="3"
-              maxlength="2000"
-              required
-              :disabled="sending"
+        <div class="conversation-layout">
+          <aside class="conversation-summary">
+            <ConsultationHandoffSummary
+              v-if="admin"
+              :key="selected.consultationId"
+              :consultation-id="selected.consultationId"
             />
-          </label>
-          <button
-            class="button button-primary"
-            :disabled="sending || busy || connectionState !== 'connected' || !messageDraft.trim()"
-          >
-            {{ sending ? '전송 확인 중…' : '메시지 전송' }}
-          </button>
-        </form>
+          </aside>
+          <section class="conversation-chat" aria-label="상담 대화">
+            <div class="conversation-chat-heading">
+              <h3>대화 내용</h3>
+              <p role="status">{{ connectionLabels[connectionState] }}</p>
+            </div>
+            <ol class="conversation-messages" aria-label="대화 내용" tabindex="0">
+              <li
+                v-for="message in messages"
+                :key="message.messageId"
+                class="conversation-message"
+                :class="{ 'conversation-message--admin': message.senderType === 'ADMIN' }"
+              >
+                <div class="conversation-message-content">
+                  <strong>{{
+                    { USER: '고객', ADMIN: '상담사', AI: 'AI 상담 도우미', SYSTEM: '안내' }[
+                      message.senderType
+                    ] || '상담'
+                  }}</strong>
+                  <p style="white-space: pre-wrap; overflow-wrap: anywhere">
+                    {{ message.content }}
+                  </p>
+                  <time :datetime="message.createdAt" :title="message.createdAt">{{
+                    displayDateTime(message.createdAt)
+                  }}</time>
+                </div>
+              </li>
+            </ol>
+            <p v-if="!messages.length" class="conversation-empty">아직 대화 내용이 없습니다.</p>
+            <button
+              v-if="selected.status !== 'CLOSED' && ['failed', 'closed'].includes(connectionState)"
+              class="button button-secondary conversation-reconnect"
+              @click="connectConversation"
+            >
+              다시 연결
+            </button>
+            <form
+              v-if="['AI_HANDLING', 'IN_PROGRESS'].includes(selected.status)"
+              class="conversation-composer"
+              @submit.prevent="sendMessage"
+            >
+              <label class="ui-field"
+                >답변 작성<textarea
+                  v-model="messageDraft"
+                  rows="3"
+                  maxlength="2000"
+                  required
+                  placeholder="고객에게 보낼 답변을 입력해 주세요."
+                  :disabled="sending"
+                />
+              </label>
+              <button
+                class="button button-primary"
+                :disabled="
+                  sending || busy || connectionState !== 'connected' || !messageDraft.trim()
+                "
+              >
+                {{ sending ? '전송 확인 중…' : '메시지 전송' }}
+              </button>
+            </form>
+            <p v-else class="conversation-empty">
+              {{
+                selected.status === 'CLOSED'
+                  ? '종료된 상담입니다. 대화 내용을 확인할 수 있습니다.'
+                  : '현재 상담 상태에서는 메시지를 보낼 수 없습니다.'
+              }}
+            </p>
+          </section>
+        </div>
       </article>
     </div>
   </section>
 </template>
+
+<style scoped>
+.admin-conversation {
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  min-width: 0;
+}
+.conversation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+.conversation-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.conversation-title h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.conversation-status {
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-pressed);
+}
+.conversation-confirm {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background);
+}
+.conversation-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 2fr);
+}
+.conversation-summary {
+  padding: 24px;
+  border-right: 1px solid var(--color-border);
+  min-width: 0;
+}
+.conversation-summary :deep(h3) {
+  font-size: 16px;
+  margin: 0;
+}
+.conversation-summary :deep(p) {
+  font-size: 14px;
+  line-height: 1.9;
+  margin: 0;
+}
+.conversation-chat {
+  min-width: 0;
+}
+.conversation-chat-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 18px 24px;
+}
+.conversation-chat-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.conversation-chat-heading p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.conversation-messages {
+  list-style: none;
+  margin: 0;
+  padding: 24px;
+  min-height: 280px;
+  max-height: 55vh;
+  overflow-y: auto;
+  background: var(--color-info-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.conversation-message {
+  display: flex;
+}
+.conversation-message--admin {
+  justify-content: flex-end;
+}
+.conversation-message-content {
+  max-width: 88%;
+  min-width: 0;
+}
+.conversation-message strong {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.conversation-message p {
+  margin: 8px 0;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0 12px 12px 12px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.conversation-message--admin p {
+  background: var(--color-primary-soft);
+  border-color: transparent;
+  border-radius: 12px 0 12px 12px;
+}
+.conversation-message--admin strong,
+.conversation-message--admin time {
+  display: block;
+  text-align: right;
+}
+.conversation-message time {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.conversation-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border);
+}
+.conversation-composer .ui-field {
+  font-size: 13px;
+}
+.conversation-composer textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.conversation-composer .button {
+  min-height: 48px;
+}
+.conversation-empty {
+  padding: 16px 24px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.conversation-reconnect {
+  margin: 16px 24px;
+}
+@media (max-width: 1100px) {
+  .conversation-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .conversation-summary {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+@media (max-width: 600px) {
+  .conversation-header,
+  .conversation-summary,
+  .conversation-chat-heading,
+  .conversation-messages,
+  .conversation-composer {
+    padding: 16px;
+  }
+  .conversation-title h2 {
+    font-size: 18px;
+  }
+  .conversation-composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .conversation-composer .button {
+    justify-self: end;
+  }
+  .conversation-message-content {
+    max-width: 95%;
+  }
+}
+</style>
