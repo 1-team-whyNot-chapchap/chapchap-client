@@ -42,6 +42,8 @@ export function createCustomerApi(client) {
     consultations: (admin = false) => get(admin ? '/admin/consultations' : '/consultations'),
     consultationSummary: (consultationId) =>
       get(`/admin/consultations/${id(consultationId)}/summary`),
+    retryConsultationSummary: (consultationId) =>
+      write('post', `/admin/consultations/${id(consultationId)}/summary/retries`),
     assignedConsultations: () => get('/admin/consultations/assigned'),
     consultation: (consultationId, admin = false) =>
       get(`${admin ? '/admin' : ''}/consultations/${id(consultationId)}`),

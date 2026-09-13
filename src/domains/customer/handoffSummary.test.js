@@ -41,7 +41,7 @@ test('late result from old consultation or account is discarded', async () => {
   assert.deepEqual(scheduled, [])
 })
 
-test('fetch failure retries without preventing chat and terminal failures stop polling', async () => {
+test('fetch failure and failed summaries keep polling for recovery', async () => {
   const values = [],
     scheduled = []
   let calls = 0
@@ -58,7 +58,7 @@ test('fetch failure retries without preventing chat and terminal failures stop p
   assert.equal(values[0].error, true)
   await scheduled[0]()
   assert.equal(values[1].status, 'FAILED')
-  assert.equal(scheduled.length, 1)
+  assert.equal(scheduled.length, 2)
 })
 
 test('each non-ready state has actionable Korean text', () => {

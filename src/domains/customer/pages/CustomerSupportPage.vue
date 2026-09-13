@@ -38,7 +38,11 @@ onMounted(loadFaqs)
         <MessageCircleQuestion :size="24" aria-hidden="true" />
         <h2>상담 채팅</h2>
         <p>환불과 결제 관련 문의를 상담사에게 남겨 주세요.</p>
-        <button class="button button-primary" type="button" @click="emit('navigate', 'wf-036')">
+        <button
+          class="button button-primary"
+          type="button"
+          @click="emit('navigate', 'consultation-design')"
+        >
           상담 시작하기
           <ChevronRight :size="18" aria-hidden="true" />
         </button>

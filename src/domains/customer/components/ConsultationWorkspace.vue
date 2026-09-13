@@ -9,6 +9,7 @@ import ConsultationHandoffSummary from './ConsultationHandoffSummary.vue'
 import CustomerChatView from './CustomerChatView.vue'
 import http, { authSession } from '../../../common/api/http.js'
 import { createConsultationConnection } from '../realtime/consultationConnection.js'
+import { createConsultationHistorySync } from '../realtime/consultationHistory.js'
 const props = defineProps({ admin: Boolean, detail: Boolean })
 const mobileOpen = ref(false),
   titles = ref({})
@@ -25,7 +26,7 @@ const messageDraft = ref(''),
   sending = ref(false),
   connectionState = ref('closed'),
   confirmingClose = ref(false)
-let connection, confirmationTimer, statusTimer
+let connection, confirmationTimer, statusTimer, historySync
 let statusLoading = false
 let disposed = false,
   selectionVersion = 0
@@ -37,10 +38,32 @@ const connectionLabels = {
   closed: '연결 종료',
 }
 function connectConversation() {
+  historySync?.stop()
   connection?.stop()
   if (disposed || !selected.value || !authSession.state.user || selected.value.status === 'CLOSED')
     return
   const consultationId = selected.value.consultationId
+  const sync = createConsultationHistorySync({
+    load: () =>
+      Promise.all([
+        api.consultation(consultationId, props.admin),
+        api.messages(consultationId, props.admin),
+      ]),
+    apply: ([current, history]) => {
+      selected.value = current
+      messages.value = [
+        ...new Map(
+          [...history.messages, ...messages.value].map((row) => [String(row.messageId), row]),
+        ).values(),
+      ].sort((a, b) => a.sequenceNo - b.sequenceNo)
+      if (error.value === '대화 이력을 복구하고 있습니다. 잠시 후 자동으로 다시 확인합니다.')
+        error.value = ''
+    },
+    onError: () => {
+      error.value = '대화 이력을 복구하고 있습니다. 잠시 후 자동으로 다시 확인합니다.'
+    },
+  })
+  historySync = sync
   const url = new URL(
     '/ws/customer/consultations',
     import.meta.env?.VITE_GATEWAY_BASE_URL || window.location.origin,
@@ -57,29 +80,13 @@ function connectConversation() {
     onState: (state) => {
       connectionState.value = state
       if (state !== 'connected') {
+        sync.stop()
         if (sending.value) notice.value = '연결이 끊겼습니다. 대화에서 전송 결과를 확인해 주세요.'
         sending.value = false
         clearTimeout(confirmationTimer)
       }
     },
-    onConnected: async () => {
-      try {
-        const [current, history] = await Promise.all([
-          api.consultation(consultationId, props.admin),
-          api.messages(consultationId, props.admin),
-        ])
-        if (disposed || String(selected.value?.consultationId) !== String(consultationId)) return
-        selected.value = current
-        // 조회 중 수신한 새 메시지를 오래된 HTTP 스냅샷으로 덮어쓰지 않는다.
-        messages.value = [
-          ...new Map(
-            [...history.messages, ...messages.value].map((row) => [String(row.messageId), row]),
-          ).values(),
-        ].sort((a, b) => a.sequenceNo - b.sequenceNo)
-      } catch {
-        if (!disposed) error.value = '대화 이력을 다시 불러오지 못했습니다. 새로고침해 주세요.'
-      }
-    },
+    onConnected: () => sync.start(),
     onMessage: (message) => {
       if (String(selected.value?.consultationId) !== String(consultationId)) return
       if (!messages.value.some((row) => String(row.messageId) === String(message.messageId)))
@@ -141,6 +148,7 @@ watch(
   (user) => {
     if (!user) {
       selectionVersion++
+      historySync?.stop()
       connection?.stop()
       selected.value = null
       messages.value = []
@@ -155,6 +163,7 @@ watch(
 onUnmounted(() => {
   disposed = true
   selectionVersion++
+  historySync?.stop()
   connection?.stop()
   clearTimeout(confirmationTimer)
   clearInterval(statusTimer)
@@ -274,15 +283,29 @@ onMounted(() => {
   // 수락/종료는 메시지 이벤트가 아니므로 화면에 열린 상담의 상태를 별도로 확인한다.
   statusTimer = setInterval(async () => {
     const id = selected.value?.consultationId
+    const version = selectionVersion
     if (!id || selected.value.status === 'CLOSED' || statusLoading || busy.value) return
     statusLoading = true
     try {
       const current = await api.consultation(id, props.admin)
-      if (!disposed && String(selected.value?.consultationId) === String(id))
+      if (
+        !disposed &&
+        version === selectionVersion &&
+        String(selected.value?.consultationId) === String(id)
+      ) {
         selected.value = current
+        if (
+          error.value === '상담 상태를 다시 확인하고 있습니다. 연결이 복구되면 자동으로 갱신됩니다.'
+        )
+          error.value = ''
+      }
     } catch {
-      connection?.stop()
-      error.value = '상담 상태를 확인하지 못했습니다. 새로고침해 주세요.'
+      if (
+        !disposed &&
+        version === selectionVersion &&
+        String(selected.value?.consultationId) === String(id)
+      )
+        error.value = '상담 상태를 다시 확인하고 있습니다. 연결이 복구되면 자동으로 갱신됩니다.'
     } finally {
       statusLoading = false
     }
