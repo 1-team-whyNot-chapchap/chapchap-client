@@ -13,6 +13,7 @@ export function createFirstSubscriptionStore(
       requiredTerms: [],
       agreedTerms: {},
       preview: null,
+      previewRequest: null,
       result: null,
       termsStatus: 'idle',
       previewStatus: 'idle',
@@ -20,6 +21,11 @@ export function createFirstSubscriptionStore(
       error: null,
     }),
     actions: {
+      invalidatePreview() {
+        this.previewRequest = null
+        this.preview = null
+        this.previewStatus = 'idle'
+      },
       begin(planId) {
         if (this.planId === planId) return
         this.$reset()
@@ -32,14 +38,14 @@ export function createFirstSubscriptionStore(
         this.deliveryConditions = weekdays.map(
           (weekday) => previous.get(weekday) || createDeliveryCondition(weekday),
         )
-        this.preview = null
+        this.invalidatePreview()
         this.result = null
       },
       updateDeliveryCondition(weekday, changes) {
         this.deliveryConditions = this.deliveryConditions.map((condition) =>
           condition.weekday === weekday ? { ...condition, ...changes } : condition,
         )
-        this.preview = null
+        this.invalidatePreview()
         this.result = null
       },
       applyDefaultAddress(addressId) {
@@ -50,6 +56,7 @@ export function createFirstSubscriptionStore(
       },
       async fetchRequiredTerms(force = false) {
         if (!force && ['success', 'loading'].includes(this.termsStatus)) return this.requiredTerms
+        this.invalidatePreview()
         this.termsStatus = 'loading'
         this.error = null
         try {
@@ -67,7 +74,7 @@ export function createFirstSubscriptionStore(
       },
       setTermAgreement(termsType, agreed) {
         this.agreedTerms = { ...this.agreedTerms, [termsType]: agreed }
-        this.preview = null
+        this.invalidatePreview()
       },
       async agreeRequiredTerms() {
         if (
@@ -83,13 +90,19 @@ export function createFirstSubscriptionStore(
         )
       },
       async requestPreview(request) {
+        this.invalidatePreview()
+        this.previewRequest = {}
+        const pending = this.previewRequest
         this.previewStatus = 'loading'
         this.error = null
         try {
-          this.preview = await api.preview(request)
+          const preview = await api.preview(request)
+          if (this.previewRequest !== pending) return null
+          this.preview = preview
           this.previewStatus = 'success'
           return this.preview
         } catch (error) {
+          if (this.previewRequest !== pending) return null
           this.previewStatus = 'error'
           this.error = error
           return null
