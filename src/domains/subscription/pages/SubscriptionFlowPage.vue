@@ -15,6 +15,7 @@ import {
 } from '../firstSubscriptionForm.js'
 import { useAddressStore } from '../stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
+import { usePaymentMethodStore } from '../stores/usePaymentMethodStore.js'
 import { usePlanStore } from '../stores/usePlanStore.js'
 
 const props = defineProps({ step: { type: Number, required: true } })
@@ -22,6 +23,7 @@ const route = useRoute()
 const router = useRouter()
 const addressStore = useAddressStore()
 const application = useFirstSubscriptionStore()
+const paymentMethodStore = usePaymentMethodStore()
 const planStore = usePlanStore()
 const validationMessage = computed(
   () => application.error?.serverMessage || application.error?.message || '',
@@ -29,6 +31,7 @@ const validationMessage = computed(
 const planId = computed(() => (typeof route.query.planId === 'string' ? route.query.planId : ''))
 const plan = computed(() => planStore.planById(application.planId))
 const addresses = computed(() => addressStore.addresses)
+const currentPaymentMethod = computed(() => paymentMethodStore.currentPaymentMethod)
 const addressById = computed(
   () => new Map(addresses.value.map((address) => [address.addressId, address])),
 )
@@ -59,6 +62,7 @@ async function initialize() {
     )
   }
   if (props.step >= 4) await application.fetchRequiredTerms()
+  if (props.step >= 5) await paymentMethodStore.fetchPaymentMethods(true)
 }
 
 watch([planId, () => props.step], initialize, { immediate: true })
@@ -153,6 +157,15 @@ async function submit() {
   const request = requestOrMessage()
   if (!request || !application.preview) {
     application.error = new Error('예상 결제금액을 먼저 확인해 주세요.')
+    return
+  }
+  await paymentMethodStore.fetchPaymentMethods(true)
+  if (paymentMethodStore.status === 'error') {
+    application.error = paymentMethodStore.error
+    return
+  }
+  if (!currentPaymentMethod.value) {
+    application.error = new Error('현재 자동결제수단을 등록하거나 선택해 주세요.')
     return
   }
   try {
@@ -434,9 +447,26 @@ async function submit() {
             </section>
             <section class="review-card">
               <h2>자동결제수단</h2>
-              <p>
-                첫 결제와 이후 정기결제에는 서버에 설정된 현재 자동결제수단이 사용됩니다. 이
-                신청에서는 결제수단을 선택하거나 결제수단 ID를 전송하지 않습니다.
+              <p v-if="paymentMethodStore.status === 'loading'" role="status">
+                현재 자동결제수단을 확인하고 있어요.
+              </p>
+              <template v-else-if="paymentMethodStore.status === 'error'">
+                <p role="alert">자동결제수단을 확인하지 못했습니다.</p>
+                <button
+                  class="button button-secondary"
+                  type="button"
+                  @click="paymentMethodStore.fetchPaymentMethods(true)"
+                >
+                  다시 시도
+                </button>
+              </template>
+              <p v-else-if="currentPaymentMethod">
+                <strong>{{ currentPaymentMethod.cardCompany || '등록 카드' }}</strong>
+                {{ currentPaymentMethod.maskedCardNumber || '카드 정보 확인 필요' }}가 현재
+                자동결제수단으로 설정되어 있습니다.
+              </p>
+              <p v-else role="alert">
+                구독을 신청하려면 현재 자동결제수단을 하나 등록하고 선택해 주세요.
               </p>
               <button
                 class="button button-outline"
@@ -490,7 +520,9 @@ async function submit() {
               v-else-if="step === 5"
               class="button button-primary"
               type="button"
-              :disabled="application.submitStatus === 'loading'"
+              :disabled="
+                application.submitStatus === 'loading' || paymentMethodStore.status === 'loading'
+              "
               @click="submit"
             >
               구독 신청 및 결제</button

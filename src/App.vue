@@ -4,6 +4,7 @@ import { useAddressStore } from './domains/subscription/stores/useAddressStore.j
 import { useCurrentSubscriptionStore } from './domains/subscription/stores/useCurrentSubscriptionStore.js'
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
 import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
+import { usePaymentMethodStore } from './domains/subscription/stores/usePaymentMethodStore.js'
 import { useSettingChangeStore } from './domains/subscription/stores/useSettingChangeStore.js'
 import { useSubscriptionCancellationStore } from './domains/subscription/stores/useSubscriptionCancellationStore.js'
 import { authSession } from './common/api/http.js'
@@ -20,6 +21,7 @@ const addressStore = useAddressStore()
 const currentSubscriptionStore = useCurrentSubscriptionStore()
 const firstSubscriptionStore = useFirstSubscriptionStore()
 const orderStore = useOrderStore()
+const paymentMethodStore = usePaymentMethodStore()
 const settingChangeStore = useSettingChangeStore()
 const cancellationStore = useSubscriptionCancellationStore()
 watch(
@@ -38,6 +40,7 @@ watch(
     firstSubscriptionStore.$reset()
     orderStore.clearSelectedOrder()
     orderStore.$reset()
+    paymentMethodStore.$reset()
     settingChangeStore.$reset()
     cancellationStore.$reset()
     appStore.$reset()
