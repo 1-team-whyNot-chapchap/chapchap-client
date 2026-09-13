@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { ArrowLeft, ArrowUp, Headphones, Plus, RefreshCw } from 'lucide-vue-next'
 import { displayDateTime } from '../../../common/utils/displayDate.js'
+import ChatMessageContent from './ChatMessageContent.vue'
 
 const props = defineProps({
   rows: { type: Array, default: () => [] },
@@ -211,7 +212,7 @@ watch(
                   message.senderType
                 ] || '상담'
               }}</span>
-              <p class="chat-bubble">{{ message.content }}</p>
+              <ChatMessageContent :message="message" />
               <time
                 :datetime="message.createdAt"
                 :title="displayDateTime(message.createdAt)"
