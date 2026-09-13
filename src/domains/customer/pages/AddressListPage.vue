@@ -68,6 +68,19 @@ async function setDefault(address) {
   }
 }
 
+function requestRemoval(address) {
+  if (address.isDefault) {
+    notice.value = {
+      tone: 'danger',
+      title: '기본 배송지는 삭제할 수 없어요.',
+      message: '다른 배송지를 기본으로 지정한 뒤 삭제해 주세요.',
+    }
+    return
+  }
+
+  removing.value = address
+}
+
 async function remove() {
   if (!removing.value) return
   const deleted = await addressStore.deleteAddress(removing.value.addressId)
@@ -158,9 +171,9 @@ async function remove() {
             <button
               class="text-button"
               type="button"
-              :disabled="address.isDefault || addressStore.isMutating"
+              :disabled="addressStore.isMutating"
               :aria-label="`${address.name} 삭제`"
-              @click="removing = address"
+              @click="requestRemoval(address)"
             >
               삭제
             </button>
