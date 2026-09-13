@@ -1,8 +1,9 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { nextTick, reactive, ref } from 'vue'
 import { CircleAlert } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import StateNotice from '../../../common/components/feedback/StateNotice.vue'
+import { loadKakaoPostcode, toRoadAddressSelection } from '../kakaoPostcode.js'
 import {
   addressErrorMessage,
   createAddressForm,
@@ -14,6 +15,35 @@ const emit = defineEmits(['navigate'])
 const addressStore = useAddressStore()
 const form = reactive(createAddressForm())
 const errorMessage = ref('')
+const addressSearchError = ref('')
+const isLoadingAddressSearch = ref(false)
+const detailAddressInput = ref(null)
+
+async function searchAddress() {
+  addressSearchError.value = ''
+  isLoadingAddressSearch.value = true
+
+  try {
+    const Postcode = await loadKakaoPostcode()
+    new Postcode({
+      oncomplete: async (data) => {
+        try {
+          const selection = toRoadAddressSelection(data)
+          form.postalCode = selection.postalCode
+          form.addressLine1 = selection.addressLine1
+          await nextTick()
+          detailAddressInput.value?.focus()
+        } catch (error) {
+          addressSearchError.value = error.message
+        }
+      },
+    }).open()
+  } catch (error) {
+    addressSearchError.value = error.message
+  } finally {
+    isLoadingAddressSearch.value = false
+  }
+}
 
 async function saveAddress() {
   errorMessage.value = ''
@@ -67,6 +97,13 @@ async function saveAddress() {
           </label>
         </div>
 
+        <StateNotice
+          v-if="addressSearchError"
+          tone="danger"
+          title="주소를 적용하지 못했어요."
+          :message="addressSearchError"
+        />
+
         <label class="form-field">
           <span>휴대폰 번호</span>
           <input
@@ -84,22 +121,39 @@ async function saveAddress() {
             autocomplete="postal-code"
             inputmode="numeric"
             required
+            readonly
             maxlength="10"
           />
         </label>
         <label class="form-field">
           <span>도로명 주소</span>
-          <textarea
-            v-model.trim="form.addressLine1"
-            rows="3"
-            autocomplete="street-address"
-            required
-            maxlength="255"
-          />
+          <div class="address-search-control">
+            <textarea
+              v-model.trim="form.addressLine1"
+              rows="3"
+              autocomplete="street-address"
+              required
+              readonly
+              maxlength="255"
+            />
+            <button
+              class="button button-secondary"
+              type="button"
+              :disabled="isLoadingAddressSearch || addressStore.isMutating"
+              @click="searchAddress"
+            >
+              {{ isLoadingAddressSearch ? '주소 검색 준비 중...' : '주소 검색' }}
+            </button>
+          </div>
         </label>
         <label class="form-field">
           <span>상세 주소 (선택)</span>
-          <input v-model.trim="form.addressLine2" autocomplete="address-line2" maxlength="255" />
+          <input
+            ref="detailAddressInput"
+            v-model.trim="form.addressLine2"
+            autocomplete="address-line2"
+            maxlength="255"
+          />
         </label>
         <label class="form-field">
           <span>수령 방식</span>
@@ -178,6 +232,18 @@ async function saveAddress() {
   gap: 9px;
 }
 
+.address-search-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.address-search-control > .button {
+  min-height: 48px;
+  white-space: nowrap;
+}
+
 .form-field > span {
   color: var(--color-text);
   font-size: var(--font-caption);
@@ -242,6 +308,10 @@ async function saveAddress() {
   }
   .address-fields > .button {
     width: 100%;
+  }
+
+  .address-search-control {
+    grid-template-columns: 1fr;
   }
 }
 </style>
