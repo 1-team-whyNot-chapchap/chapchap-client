@@ -3,6 +3,7 @@ import { Bike, LayoutDashboard, LogIn } from 'lucide-vue-next'
 import LogoutButton from '../../domains/auth/components/LogoutButton.vue'
 import { authSession } from '../api/http.js'
 import { computed } from 'vue'
+import NotificationBell from '../../domains/customer/components/NotificationBell.vue'
 
 const navigationItems = computed(() =>
   authSession.state.user
@@ -40,7 +41,7 @@ const emit = defineEmits(['navigate'])
         @click="emit('navigate', 'home')"
       >
         <!-- img는 전달받은 브랜드 이미지를 표시하는 태그이며, 버튼의 aria-label이 이름을 대신하므로 alt는 비워 둡니다. -->
-        <img class="brand-mark" src="/images/chapchap-brand-logo.png" alt="" />
+        <img class="brand-mark" src="/images/chapchap-wok-logo.png" alt="" />
       </button>
 
       <nav class="desktop-navigation" aria-label="상단 메뉴">
@@ -56,6 +57,7 @@ const emit = defineEmits(['navigate'])
       </nav>
 
       <div class="header-actions">
+        <NotificationBell />
         <button
           class="header-admin-button"
           v-if="['ADMIN', 'SUPER_ADMIN'].includes(authSession.state.user?.role)"
@@ -139,8 +141,9 @@ const emit = defineEmits(['navigate'])
 }
 
 .brand-button .brand-mark {
-  width: 56px;
+  width: 70px;
   height: 56px;
+  object-fit: contain;
 }
 
 .desktop-navigation {

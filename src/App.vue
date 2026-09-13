@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, watch, onBeforeUnmount } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
 import { useCurrentSubscriptionStore } from './domains/subscription/stores/useCurrentSubscriptionStore.js'
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
@@ -15,6 +15,11 @@ import CustomerQuickNavigation from './common/components/navigation/CustomerQuic
 import PlanSelectionSheet from './domains/subscription/components/PlanSelectionSheet.vue'
 import { useAppStore } from './stores/useAppStore'
 
+import NotificationBell from './domains/customer/components/NotificationBell.vue'
+import {
+  notifications,
+  notificationState,
+} from './domains/customer/realtime/sharedNotifications.js'
 const appStore = useAppStore()
 const addressStore = useAddressStore()
 const currentSubscriptionStore = useCurrentSubscriptionStore()
@@ -46,6 +51,12 @@ watch(
 )
 const route = useRoute()
 const router = useRouter()
+watch(
+  () => `${authSession.state.user?.userId}:${authSession.state.user?.role}`,
+  () => notifications.setOwner(authSession.state.user),
+  { immediate: true, flush: 'sync' },
+)
+onBeforeUnmount(() => notifications.stop())
 
 const navigationItems = computed(() => [
   { id: 'home', label: '홈', icon: Home },
@@ -68,6 +79,7 @@ const isAdminPage = computed(() => route.name === 'admin' || route.meta.area ===
 // 로그인·회원가입과 구독 신청은 한 가지 과업에 집중해야 하는 화면입니다.
 // 라우트의 layout 값으로 공통 헤더·푸터·전역 탐색을 숨겨 집중형 레이아웃을 적용합니다.
 const isMinimalPage = computed(() => route.meta.layout === 'minimal')
+const showHeader = computed(() => !isMinimalPage.value || route.path.startsWith('/subscribe/'))
 const activeNavigation = computed(() => {
   const routeName = String(route.name || '')
 
@@ -132,7 +144,7 @@ function navigate(view) {
     </template>
 
     <template v-else>
-      <CustomerHeader v-if="!isMinimalPage" :current-view="activeNavigation" @navigate="navigate" />
+      <CustomerHeader v-if="showHeader" :current-view="activeNavigation" @navigate="navigate" />
       <CustomerQuickNavigation v-if="!isMinimalPage" @navigate="navigate" />
 
       <section class="customer-content" :class="{ 'customer-content--minimal': isMinimalPage }">
@@ -167,6 +179,15 @@ function navigate(view) {
       </nav>
     </template>
 
+    <div
+      v-if="notificationState.owner && (isAdminPage || !showHeader)"
+      class="global-notification-entry"
+    >
+      <NotificationBell />
+    </div>
+    <p class="notification-announcement" role="status" aria-live="polite">
+      {{ notificationState.latest ? `새 알림: ${notificationState.latest.title}` : '' }}
+    </p>
     <PlanSelectionSheet
       v-if="!isAdminPage && !isMinimalPage"
       :is-open="appStore.isPlanSheetOpen"
@@ -255,5 +276,23 @@ function navigate(view) {
   .bottom-navigation {
     display: flex;
   }
+}
+</style>
+
+<style scoped>
+.global-notification-entry {
+  position: fixed;
+  right: 18px;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  z-index: 40;
+}
+.notification-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

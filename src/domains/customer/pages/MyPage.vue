@@ -1,6 +1,5 @@
 <script setup>
 import {
-  Bell,
   ChevronRight,
   CreditCard,
   MapPin,
@@ -18,6 +17,7 @@ import http, { authSession } from '../../../common/api/http.js'
 import { createAccountApi } from '../../auth/accountApi.js'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import MyPageSubscriptionSummary from '../../subscription/components/MyPageSubscriptionSummary.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const emit = defineEmits(['navigate'])
 const api = createAccountApi(http)
@@ -101,26 +101,14 @@ const links = [
       <p class="my-greeting">나의 챱챱 · 안녕하세요</p>
       <section class="mypage-profile">
         <RouterLink class="profile-avatar" to="/mypage/profile" aria-label="프로필 사진 변경">
-          <img
-            v-if="photo"
-            :src="photo"
-            alt="내 프로필 사진"
-            @error="failPhoto"
-          />
+          <img v-if="photo" :src="photo" alt="내 프로필 사진" @error="failPhoto" />
           <UserRound v-else :size="36" aria-hidden="true" />
         </RouterLink>
         <h1 class="profile-name">
           {{ authSession.state.user?.name || '마이페이지'
           }}<span v-if="authSession.state.user?.name">님</span>
         </h1>
-        <button
-          type="button"
-          class="icon-button"
-          aria-label="알림함"
-          @click="emit('navigate', 'notifications')"
-        >
-          <Bell :size="20" aria-hidden="true" />
-        </button>
+        <NotificationBell icon-only />
       </section>
 
       <p v-if="photoError" class="photo-error" role="status">
