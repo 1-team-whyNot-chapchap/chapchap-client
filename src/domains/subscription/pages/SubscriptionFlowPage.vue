@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle2, Minus, Plus, Truck } from 'lucide-vue-next'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
@@ -16,6 +16,7 @@ import {
 import { useAddressStore } from '../stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
 import { usePlanStore } from '../stores/usePlanStore.js'
+import PaymentMethodPanel from '../components/PaymentMethodPanel.vue'
 
 const props = defineProps({ step: { type: Number, required: true } })
 const route = useRoute()
@@ -23,6 +24,17 @@ const router = useRouter()
 const addressStore = useAddressStore()
 const application = useFirstSubscriptionStore()
 const planStore = usePlanStore()
+const paymentPanel = ref(null)
+const paymentReady = ref(false)
+const checkingPayment = ref(false)
+const agreeingTerms = ref(false)
+let initialization = 0
+let mounted = true
+onBeforeUnmount(() => {
+  mounted = false
+  initialization += 1
+  application.invalidatePreview()
+})
 const validationMessage = computed(
   () => application.error?.serverMessage || application.error?.message || '',
 )
@@ -32,7 +44,10 @@ const addresses = computed(() => addressStore.addresses)
 const addressById = computed(
   () => new Map(addresses.value.map((address) => [address.addressId, address])),
 )
-const steps = ['배송 요일', '배송지', '식사·시간', '약관·견적', '신청']
+const steps = ['배송 요일', '배송지', '식사·시간', '신청 정보·약관', '예상 금액·결제']
+const previewReady = computed(
+  () => application.previewStatus === 'success' && Boolean(application.preview),
+)
 const hasAcceptedAllTerms = computed(
   () =>
     application.requiredTerms.length > 0 &&
@@ -48,17 +63,36 @@ function navigate(name) {
 }
 
 async function initialize() {
+  const current = ++initialization
+  const active = () => mounted && current === initialization
+  application.invalidatePreview()
   if (!planId.value) return
   application.begin(planId.value)
+  if (props.step === 5) {
+    if (!requestOrMessage()) {
+      application.error = new Error('신청 정보가 없습니다. 배송 요일부터 다시 확인해 주세요.')
+      await router.replace({ name: 'wf-013', query: flowQuery() })
+      return
+    }
+    if (!hasAcceptedAllTerms.value) {
+      application.error = new Error('필수 약관을 확인하고 동의해 주세요.')
+      await router.replace({ name: 'wf-016', query: flowQuery() })
+      return
+    }
+  }
   await planStore.fetchPlan(planId.value)
+  if (!active()) return
   if (props.step >= 2) {
     await addressStore.fetchAddresses()
+    if (!active()) return
     application.applyDefaultAddress(
       addresses.value.find((address) => address.isDefault)?.addressId ||
         addresses.value[0]?.addressId,
     )
   }
   if (props.step >= 4) await application.fetchRequiredTerms()
+  if (!active()) return
+  if (props.step === 5) await requestPreview()
 }
 
 watch([planId, () => props.step], initialize, { immediate: true })
@@ -130,7 +164,8 @@ function goNext() {
   }
 }
 
-async function requestPreview() {
+async function continueToPayment() {
+  if (agreeingTerms.value || props.step !== 4) return
   application.error = null
   const request = requestOrMessage()
   if (!request) return
@@ -138,31 +173,51 @@ async function requestPreview() {
     application.error = new Error('모든 필수 약관에 동의해 주세요.')
     return
   }
+  const current = initialization
+  agreeingTerms.value = true
   try {
     await application.agreeRequiredTerms()
+    if (mounted && props.step === 4 && current === initialization) navigate('wf-017')
   } catch (error) {
+    if (!mounted || current !== initialization) return
     application.error = error
     if (error?.code === 'TERMS_VERSION_MISMATCH') await application.fetchRequiredTerms(true)
-    return
+  } finally {
+    agreeingTerms.value = false
   }
-  if (await application.requestPreview(request)) navigate('wf-017')
+}
+
+async function requestPreview() {
+  if (props.step !== 5 || application.previewStatus === 'loading') return
+  const request = requestOrMessage()
+  if (!request || !hasAcceptedAllTerms.value) return
+  await application.requestPreview(request)
 }
 
 async function submit() {
+  if (checkingPayment.value || application.submitStatus === 'loading') return
   application.error = null
+  if (!paymentReady.value) {
+    application.error = new Error('결제에 사용할 현재 결제수단을 먼저 확인해 주세요.')
+    return
+  }
   const request = requestOrMessage()
-  if (!request || !application.preview) {
+  if (!request || !previewReady.value) {
     application.error = new Error('예상 결제금액을 먼저 확인해 주세요.')
     return
   }
+  checkingPayment.value = true
   try {
     await application.agreeRequiredTerms()
+    if (!(await paymentPanel.value?.verifyCurrent())) return
+    if (!mounted || props.step !== 5) return
+    if ((await application.submit(request)) && mounted) navigate('wf-018')
   } catch (error) {
     application.error = error
     if (error?.code === 'TERMS_VERSION_MISMATCH') await application.fetchRequiredTerms(true)
-    return
+  } finally {
+    checkingPayment.value = false
   }
-  if (await application.submit(request)) navigate('wf-018')
 }
 </script>
 
@@ -218,8 +273,8 @@ async function submit() {
                   '배송받을 요일을 선택해 주세요.',
                   '요일별 배송지를 선택해 주세요.',
                   '식사 수량과 시간을 설정해 주세요.',
-                  '필수 약관과 예상 결제금액을 확인해 주세요.',
-                  '구독 신청 내용을 최종 확인해 주세요.',
+                  '신청 정보와 필수 약관을 확인해 주세요.',
+                  '예상 결제금액과 결제수단을 확인해 주세요.',
                 ][step - 1]
               }}
             </h1>
@@ -390,6 +445,7 @@ async function submit() {
                 ><input
                   :checked="application.agreedTerms[term.termsType]"
                   type="checkbox"
+                  :disabled="agreeingTerms"
                   @change="application.setTermAgreement(term.termsType, $event.target.checked)"
                 /><span
                   ><strong>[필수] {{ term.title }}</strong
@@ -401,8 +457,17 @@ async function submit() {
           </section>
           <section v-else-if="step === 5" class="flow-panel">
             <section class="review-card price-card">
-              <h2>서버 예상 결제금액</h2>
-              <dl>
+              <h2>예상 결제금액</h2>
+              <p v-if="application.previewStatus === 'loading'" role="status">
+                예상 결제금액을 불러오고 있어요.
+              </p>
+              <div v-else-if="!previewReady" role="alert">
+                <p>예상 결제금액을 확인하지 못했습니다. 다시 조회해 주세요.</p>
+                <button class="button button-secondary" type="button" @click="requestPreview">
+                  예상 금액 다시 조회
+                </button>
+              </div>
+              <dl v-else>
                 <div>
                   <dt>예상 이용 기간</dt>
                   <dd>
@@ -415,12 +480,15 @@ async function submit() {
                   </dd>
                 </div>
                 <div>
-                  <dt>식사 금액</dt>
-                  <dd>{{ formatCurrency(application.preview?.totalMealAmount) }}</dd>
-                </div>
-                <div>
-                  <dt>배송비</dt>
-                  <dd>{{ formatCurrency(application.preview?.totalDeliveryFee) }}</dd>
+                  <dt>할인 전 구독 금액</dt>
+                  <dd>
+                    {{
+                      formatCurrency(
+                        Number(application.preview.totalMealAmount) +
+                          Number(application.preview.totalDeliveryFee),
+                      )
+                    }}
+                  </dd>
                 </div>
                 <div>
                   <dt>할인 금액</dt>
@@ -434,17 +502,11 @@ async function submit() {
             </section>
             <section class="review-card">
               <h2>자동결제수단</h2>
-              <p>
-                첫 결제와 이후 정기결제에는 서버에 설정된 현재 자동결제수단이 사용됩니다. 이
-                신청에서는 결제수단을 선택하거나 결제수단 ID를 전송하지 않습니다.
-              </p>
-              <button
-                class="button button-outline"
-                type="button"
-                @click="router.push({ name: 'wf-030' })"
-              >
-                결제수단 관리
-              </button>
+              <PaymentMethodPanel
+                ref="paymentPanel"
+                :disabled="checkingPayment || application.submitStatus === 'loading'"
+                @ready="paymentReady = $event"
+              />
             </section>
           </section>
           <section v-else-if="step === 6" class="flow-result">
@@ -471,6 +533,7 @@ async function submit() {
               v-if="step <= 5"
               class="button button-secondary"
               type="button"
+              :disabled="agreeingTerms || checkingPayment || application.submitStatus === 'loading'"
               @click="goPrevious"
             >
               이전</button
@@ -480,17 +543,20 @@ async function submit() {
               v-else-if="step === 4"
               class="button button-primary"
               type="button"
-              :disabled="
-                application.termsStatus === 'loading' || application.previewStatus === 'loading'
-              "
-              @click="requestPreview"
+              :disabled="application.termsStatus !== 'success' || agreeingTerms"
+              @click="continueToPayment"
             >
-              예상 결제금액 확인</button
+              {{ agreeingTerms ? '약관 동의 처리 중…' : '다음' }}</button
             ><button
               v-else-if="step === 5"
               class="button button-primary"
               type="button"
-              :disabled="application.submitStatus === 'loading'"
+              :disabled="
+                !previewReady ||
+                !paymentReady ||
+                checkingPayment ||
+                application.submitStatus === 'loading'
+              "
               @click="submit"
             >
               구독 신청 및 결제</button
