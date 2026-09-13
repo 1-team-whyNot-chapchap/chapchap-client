@@ -1,14 +1,22 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { isOrderMonth } from '../api/orderApi.js'
 import { useOrderStore } from '../stores/useOrderStore.js'
 
 const router = useRouter()
+const route = useRoute()
 const orderStore = useOrderStore()
 const month = ref(dayjs().startOf('month'))
+const page = ref(1)
+const kstMonthFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+})
 const orderStatuses = {
   AWAITING_CONFIRMATION: '확정 대기',
   CHANGE_PENDING: '변경 대기',
@@ -21,7 +29,7 @@ const orderStatuses = {
 const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토']
 const ordersByDate = computed(() => {
   const grouped = new Map()
-  for (const order of orderStore.orders) {
+  for (const order of orderStore.calendarOrders) {
     const entries = grouped.get(order.deliveryDate) || []
     entries.push(order)
     grouped.set(order.deliveryDate, entries)
@@ -39,19 +47,78 @@ const calendarDays = computed(() => {
   return days
 })
 
-onMounted(() => orderStore.fetchOrders())
+function currentKstMonth() {
+  const values = Object.fromEntries(
+    kstMonthFormatter
+      .formatToParts(new Date())
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  )
+  return `${values.year}-${values.month}`
+}
+
+function queryMonth(value) {
+  return isOrderMonth(value) ? value : currentKstMonth()
+}
+
+function queryPage(value) {
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) return 1
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) ? parsed : 1
+}
+
+function queryFor(valueMonth, valuePage) {
+  return { month: valueMonth, page: String(valuePage) }
+}
+
+function isCurrentQuery(valueMonth, valuePage) {
+  return route.query.month === valueMonth && route.query.page === String(valuePage)
+}
+
+async function loadSchedule() {
+  const targetMonth = queryMonth(route.query.month)
+  const targetPage = queryPage(route.query.page)
+  if (!isCurrentQuery(targetMonth, targetPage)) {
+    await router.replace({ name: 'wf-022', query: queryFor(targetMonth, targetPage) })
+    return
+  }
+
+  month.value = dayjs(`${targetMonth}-01`)
+  page.value = targetPage
+  const [, history] = await Promise.all([
+    orderStore.fetchCalendarOrders(targetMonth),
+    orderStore.fetchOrderHistory(targetMonth, targetPage),
+  ])
+  if (!isCurrentQuery(targetMonth, targetPage)) return
+  if (
+    orderStore.historyStatus !== 'error' &&
+    history.totalPages > 0 &&
+    targetPage > history.totalPages
+  ) {
+    await router.replace({ name: 'wf-022', query: queryFor(targetMonth, history.totalPages) })
+    return
+  }
+}
+
+watch(() => [route.query.month, route.query.page], loadSchedule, { immediate: true })
 
 function formatAmount(amount) {
   return `${Number(amount).toLocaleString('ko-KR')}원`
 }
 
 function changeMonth(amount) {
-  month.value = month.value.add(amount, 'month').startOf('month')
+  const nextMonth = month.value.add(amount, 'month').format('YYYY-MM')
+  router.push({ name: 'wf-022', query: queryFor(nextMonth, 1) })
+}
+
+function changePage(nextPage) {
+  if (orderStore.historyStatus === 'loading' || nextPage < 1) return
+  router.push({ name: 'wf-022', query: queryFor(month.value.format('YYYY-MM'), nextPage) })
 }
 
 function openOrder(orderId) {
   if (!orderStore.selectOrder(orderId)) return
-  router.push({ name: 'wf-023' })
+  router.push({ name: 'wf-023', query: queryFor(month.value.format('YYYY-MM'), page.value) })
 }
 </script>
 
@@ -61,47 +128,37 @@ function openOrder(orderId) {
     <header class="page-intro">
       <p class="section-kicker">주문 일정</p>
       <h1>구독 주문 내역</h1>
-      <p>서버에서 확정한 배송 예정 주문만 표시합니다.</p>
+      <p>월별 주문 일정과 주문 내역을 확인하세요.</p>
     </header>
 
-    <section
-      v-if="['idle', 'loading'].includes(orderStore.listStatus)"
-      class="ui-empty"
-      aria-busy="true"
-    >
-      <h2>주문 내역을 불러오고 있어요.</h2>
-    </section>
-    <section v-else-if="orderStore.listStatus === 'error'" class="ui-empty" role="alert">
-      <h2>주문 내역을 불러오지 못했어요.</h2>
-      <p>{{ orderStore.listError?.serverMessage || '잠시 후 다시 시도해 주세요.' }}</p>
-      <button class="button button-secondary" type="button" @click="orderStore.fetchOrders(true)">
-        다시 시도
-      </button>
-    </section>
-    <section v-else-if="orderStore.listStatus === 'empty'" class="ui-empty">
-      <h2>표시할 주문이 없어요.</h2>
-      <p>구독이 시작되면 서버가 생성한 주문 일정이 이곳에 표시됩니다.</p>
-    </section>
-    <template v-else>
-      <section class="order-calendar" aria-labelledby="order-calendar-title">
-        <header class="order-calendar__header">
+    <section class="order-calendar" aria-labelledby="order-calendar-title">
+      <header class="order-calendar__header">
+        <button class="ui-icon-button" type="button" aria-label="이전 달" @click="changeMonth(-1)">
+          <ChevronLeft :size="20" aria-hidden="true" />
+        </button>
+        <h2 id="order-calendar-title">{{ month.format('YYYY년 M월') }}</h2>
+        <button class="ui-icon-button" type="button" aria-label="다음 달" @click="changeMonth(1)">
+          <ChevronRight :size="20" aria-hidden="true" />
+        </button>
+      </header>
+      <template v-if="orderStore.calendarStatus === 'error'">
+        <div class="ui-empty order-calendar__state" role="alert">
+          <h3>주문 달력을 불러오지 못했어요.</h3>
+          <p>{{ orderStore.calendarError?.serverMessage || '잠시 후 다시 시도해 주세요.' }}</p>
           <button
-            class="ui-icon-button"
+            class="button button-secondary"
             type="button"
-            aria-label="이전 달"
-            @click="changeMonth(-1)"
+            @click="orderStore.fetchCalendarOrders(month.format('YYYY-MM'), true)"
           >
-            <ChevronLeft :size="20" aria-hidden="true" />
+            다시 시도
           </button>
-          <h2 id="order-calendar-title">{{ month.format('YYYY년 M월') }}</h2>
-          <button class="ui-icon-button" type="button" aria-label="다음 달" @click="changeMonth(1)">
-            <ChevronRight :size="20" aria-hidden="true" />
-          </button>
-        </header>
+        </div>
+      </template>
+      <template v-else>
         <div class="order-calendar__weekdays" aria-hidden="true">
           <span v-for="weekday in weekdayLabels" :key="weekday">{{ weekday }}</span>
         </div>
-        <div class="order-calendar__days">
+        <div class="order-calendar__days" :aria-busy="orderStore.calendarStatus === 'loading'">
           <div
             v-for="(cell, index) in calendarDays"
             :key="cell?.date || `empty-${index}`"
@@ -123,18 +180,66 @@ function openOrder(orderId) {
             </template>
           </div>
         </div>
-        <p class="order-calendar__notice">표시가 있는 날짜만 서버가 생성한 실제 주문입니다.</p>
-      </section>
+        <p class="order-calendar__notice">
+          {{
+            orderStore.calendarStatus === 'loading'
+              ? '주문 달력을 불러오고 있어요.'
+              : '표시가 있는 날짜만 서버가 생성한 실제 주문입니다.'
+          }}
+        </p>
+      </template>
+    </section>
 
-      <section class="order-list" aria-labelledby="order-list-title">
-        <div class="order-list__heading">
+    <section class="order-list" aria-labelledby="order-list-title">
+      <div class="order-list__heading">
+        <button
+          class="ui-icon-button"
+          type="button"
+          aria-label="이전 주문 목록 페이지"
+          :disabled="orderStore.historyStatus === 'loading' || !orderStore.history.hasPrevious"
+          @click="changePage(page - 1)"
+        >
+          <ChevronLeft :size="20" aria-hidden="true" />
+        </button>
+        <div>
           <h2 id="order-list-title">주문 목록</h2>
-          <span>{{ orderStore.orders.length }}건</span>
+          <span>{{ orderStore.history.totalElements }}건</span>
         </div>
-        <article v-for="order in orderStore.orders" :key="order.orderId" class="order-card">
+        <button
+          class="ui-icon-button"
+          type="button"
+          aria-label="다음 주문 목록 페이지"
+          :disabled="orderStore.historyStatus === 'loading' || !orderStore.history.hasNext"
+          @click="changePage(page + 1)"
+        >
+          <ChevronRight :size="20" aria-hidden="true" />
+        </button>
+      </div>
+      <p v-if="orderStore.history.totalPages" class="order-list__page" aria-live="polite">
+        {{ page }} / {{ orderStore.history.totalPages }} 페이지
+      </p>
+      <div v-if="orderStore.historyStatus === 'loading'" class="ui-empty" aria-busy="true">
+        <h3>주문 목록을 불러오고 있어요.</h3>
+      </div>
+      <div v-else-if="orderStore.historyStatus === 'error'" class="ui-empty" role="alert">
+        <h3>주문 목록을 불러오지 못했어요.</h3>
+        <p>{{ orderStore.historyError?.serverMessage || '잠시 후 다시 시도해 주세요.' }}</p>
+        <button
+          class="button button-secondary"
+          type="button"
+          @click="orderStore.fetchOrderHistory(month.format('YYYY-MM'), page, true)"
+        >
+          다시 시도
+        </button>
+      </div>
+      <div v-else-if="orderStore.historyStatus === 'empty'" class="ui-empty">
+        <h3>이 달에는 주문 내역이 없어요.</h3>
+      </div>
+      <template v-else>
+        <article v-for="order in orderStore.history.orders" :key="order.orderId" class="order-card">
           <div>
             <p>{{ order.deliveryDate }}</p>
-            <h3>배송 예정 주문</h3>
+            <h3>주문 정보</h3>
             <span class="mini-badge">{{ orderStatuses[order.status] || '상태 확인 필요' }}</span>
           </div>
           <div class="order-card__actions">
@@ -144,8 +249,8 @@ function openOrder(orderId) {
             </button>
           </div>
         </article>
-      </section>
-    </template>
+      </template>
+    </section>
   </div>
 </template>
 
@@ -231,16 +336,28 @@ function openOrder(orderId) {
   font-size: var(--font-caption);
 }
 .order-list__heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--color-border);
 }
+.order-list__heading > div {
+  text-align: center;
+}
 .order-list__heading span {
   color: var(--color-text-muted);
   font-size: var(--font-caption);
+}
+.order-list__page {
+  margin: 14px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-caption);
+  text-align: center;
+}
+.order-calendar__state {
+  margin-top: 20px;
 }
 .order-card {
   display: flex;
