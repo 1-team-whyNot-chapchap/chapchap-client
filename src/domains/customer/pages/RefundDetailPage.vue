@@ -1,4 +1,5 @@
 <script setup>
 import PaymentRefundHistory from '../../subscription/components/PaymentRefundHistory.vue'
 </script>
-<template><PaymentRefundHistory kind="payments" detail /></template>
+
+<template><PaymentRefundHistory kind="refunds" detail /></template>

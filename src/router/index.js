@@ -67,7 +67,7 @@ const PaymentMethodRegistrationPage = () =>
   import('../domains/customer/pages/PaymentMethodRegistrationPage.vue')
 const PlanMenuListPage = () => import('../domains/product/pages/PlanMenuListPage.vue')
 const PlanPage = () => import('../domains/product/pages/PlanPage.vue')
-const RefundChatPage = () => import('../domains/customer/pages/RefundChatPage.vue')
+const RefundDetailPage = () => import('../domains/customer/pages/RefundDetailPage.vue')
 const RefundHistoryPage = () => import('../domains/customer/pages/RefundHistoryPage.vue')
 const SubscriptionCancelPage = () =>
   import('../domains/subscription/pages/SubscriptionCancelPage.vue')
@@ -203,11 +203,11 @@ const router = createRouter({
       component: PaymentMethodRegistrationPage,
     },
     { path: '/mypage/payments', name: 'wf-031', component: PaymentHistoryPage },
-    { path: '/mypage/payments/detail', name: 'wf-032', component: PaymentDetailPage },
+    { path: '/mypage/payments/:paymentId', name: 'wf-032', component: PaymentDetailPage },
     { path: '/mypage/deliveries', name: 'wf-033', component: DeliveryHistoryPage },
     { path: '/mypage/deliveries/detail', name: 'wf-034', component: DeliveryDetailPage },
     { path: '/mypage/refunds', name: 'wf-035', component: RefundHistoryPage },
-    { path: '/mypage/refunds/chat', name: 'wf-036', component: RefundChatPage },
+    { path: '/mypage/refunds/:refundId', name: 'wf-036', component: RefundDetailPage },
     { path: '/admin', name: 'admin', component: AdminDashboard },
     {
       path: '/admin/consultations',
