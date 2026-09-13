@@ -52,7 +52,7 @@ test('issuer calls only billing-key issuance without payment or redirection', as
     storeId: 'test-store',
     channelKey: 'test-channel',
     billingKeyMethod: 'CARD',
-    windowType: { pc: 'IFRAME' },
+    windowType: { pc: 'IFRAME', mobile: 'REDIRECTION' },
   })
 })
 test('cancel, failure and incomplete results never return a usable key or expose provider message', async () => {
@@ -73,7 +73,7 @@ test('cancel, failure and incomplete results never return a usable key or expose
     )
   }
 })
-test('mobile cannot leave the application and lose its in-memory application draft', async () => {
+test('mobile cannot leave without a saved return context', async () => {
   for (const info of [
     { userAgent: 'iPhone' },
     { userAgent: 'Android' },
@@ -87,7 +87,59 @@ test('mobile cannot leave the application and lose its in-memory application dra
           throw new Error('must not load')
         },
       }),
-      /PC 브라우저/,
+      /복귀 정보/,
     )
   }
+})
+
+test('mobile uses the card channel and redirects only after preparing the return context', async () => {
+  let request
+  const sequence = []
+  await assert.rejects(
+    issueBillingKey({
+      env,
+      navigatorInfo: { userAgent: 'Android' },
+      loadSdk: async () => {
+        sequence.push('sdk')
+        return {
+          requestIssueBillingKey: async (value) => {
+            sequence.push('request')
+            request = value
+            return { code: 'CANCEL' }
+          },
+        }
+      },
+      prepareRedirect: () => {
+        sequence.push('saved')
+        return 'https://example.test/subscription/payment-methods/callback?billingRequest=test'
+      },
+    }),
+    /완료하지 못/,
+  )
+  assert.deepEqual(sequence, ['sdk', 'saved', 'request'])
+  assert.equal(request.billingKeyMethod, 'CARD')
+  assert.equal(request.channelKey, 'test-channel')
+  assert.equal(request.windowType.mobile, 'REDIRECTION')
+  assert.equal(request.forceRedirect, true)
+  assert.match(request.redirectUrl, /^https:\/\/example.test\//)
+})
+
+test('storage preparation failure never opens the issuer', async () => {
+  let opened = 0
+  await assert.rejects(
+    issueBillingKey({
+      env,
+      navigatorInfo: { userAgent: 'iPhone' },
+      loadSdk: async () => ({
+        requestIssueBillingKey: () => {
+          opened++
+        },
+      }),
+      prepareRedirect: () => {
+        throw new Error('storage disabled')
+      },
+    }),
+    /storage disabled/,
+  )
+  assert.equal(opened, 0)
 })

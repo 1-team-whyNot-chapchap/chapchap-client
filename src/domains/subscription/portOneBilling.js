@@ -39,29 +39,37 @@ export function billingConfiguration(env = import.meta.env || {}) {
   return { storeId, channelKey, billingKeyMethod: 'CARD' }
 }
 
+export function isMobileBilling(navigatorInfo = navigator) {
+  return (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigatorInfo.userAgent) ||
+    (navigatorInfo.platform === 'MacIntel' && navigatorInfo.maxTouchPoints > 1)
+  )
+}
+
 export async function issueBillingKey({
   env,
   navigatorInfo = navigator,
   loadSdk = loadBillingSdk,
+  prepareRedirect,
 } = {}) {
-  // Mobile redirects need a separately approved return route and draft restoration.
-  if (
-    /Android|iPhone|iPad|iPod|Mobile/i.test(navigatorInfo.userAgent) ||
-    (navigatorInfo.platform === 'MacIntel' && navigatorInfo.maxTouchPoints > 1)
-  )
-    throw new Error('현재 카드 등록은 PC 브라우저에서 이용해 주세요. 모바일 연결은 준비 중입니다.')
+  const mobile = isMobileBilling(navigatorInfo)
+  if (mobile && !prepareRedirect)
+    throw new Error('카드 등록 복귀 정보를 준비하지 못했습니다. 다시 시도해 주세요.')
   const request = billingConfiguration(env)
   const sdk = await loadSdk()
+  const redirectUrl = mobile ? prepareRedirect() : null
   let response
   try {
     response = await sdk.requestIssueBillingKey({
       ...request,
-      windowType: { pc: 'IFRAME' },
+      windowType: { pc: 'IFRAME', mobile: 'REDIRECTION' },
+      ...(mobile ? { redirectUrl, forceRedirect: true } : {}),
     })
   } catch {
     // Do not propagate provider payloads that may contain sensitive data.
     throw new Error('카드 발급을 완료하지 못했습니다. 기존 결제수단은 변경되지 않았습니다.')
   }
+  if (mobile) throw new Error('카드 등록을 완료하지 못했습니다. 기존 결제수단은 유지됩니다.')
   if (!response || response.code) {
     throw new Error('카드 등록이 취소되었거나 발급되지 않았습니다. 기존 결제수단은 유지됩니다.')
   }

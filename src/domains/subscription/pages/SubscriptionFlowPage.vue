@@ -18,12 +18,26 @@ import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.j
 import { usePlanStore } from '../stores/usePlanStore.js'
 import PaymentMethodPanel from '../components/PaymentMethodPanel.vue'
 import SubscriptionScheduleSelector from '../components/SubscriptionScheduleSelector.vue'
+import { authSession } from '../../../common/api/http.js'
+import { recoverAbandonedBilling } from '../mobileBillingReturn.js'
 
 const props = defineProps({ step: { type: Number, required: true } })
 const route = useRoute()
 const router = useRouter()
 const addressStore = useAddressStore()
 const application = useFirstSubscriptionStore()
+if (props.step === 5 && typeof window !== 'undefined') {
+  try {
+    const previous = recoverAbandonedBilling(
+      authSession.state.user,
+      'subscription',
+      route.query.planId,
+    )
+    if (previous?.draft) application.restoreMobileDraft(previous.draft)
+  } catch {
+    /* Existing step guards reject missing/invalid input. */
+  }
+}
 const planStore = usePlanStore()
 const paymentPanel = ref(null)
 const paymentReady = ref(false)

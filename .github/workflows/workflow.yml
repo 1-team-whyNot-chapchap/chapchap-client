@@ -39,6 +39,7 @@ jobs:
           VITE_PRIMEUI_LICENSE: ${{ secrets.VITE_PRIMEUI_LICENSE }}
           VITE_PORTONE_STORE_ID: ${{ secrets.VITE_PORTONE_STORE_ID }}
           VITE_PORTONE_IDENTITY_CHANNEL_KEY: ${{ secrets.VITE_PORTONE_IDENTITY_CHANNEL_KEY }}
+          VITE_PORTONE_BILLING_CHANNEL_KEY: ${{ secrets.VITE_PORTONE_BILLING_CHANNEL_KEY }}
         run: |
           set -euo pipefail
 
@@ -47,12 +48,14 @@ jobs:
           : "${VITE_PRIMEUI_LICENSE:?Missing Actions secret VITE_PRIMEUI_LICENSE}"
           : "${VITE_PORTONE_STORE_ID:?Missing Actions secret VITE_PORTONE_STORE_ID}"
           : "${VITE_PORTONE_IDENTITY_CHANNEL_KEY:?Missing Actions secret VITE_PORTONE_IDENTITY_CHANNEL_KEY}"
+          : "${VITE_PORTONE_BILLING_CHANNEL_KEY:?Missing Actions secret VITE_PORTONE_BILLING_CHANNEL_KEY}"
 
           docker build \
             --build-arg VITE_GATEWAY_BASE_URL="$VITE_GATEWAY_BASE_URL" \
             --build-arg VITE_PRIMEUI_LICENSE="$VITE_PRIMEUI_LICENSE" \
             --build-arg VITE_PORTONE_STORE_ID="$VITE_PORTONE_STORE_ID" \
             --build-arg VITE_PORTONE_IDENTITY_CHANNEL_KEY="$VITE_PORTONE_IDENTITY_CHANNEL_KEY" \
+            --build-arg VITE_PORTONE_BILLING_CHANNEL_KEY="$VITE_PORTONE_BILLING_CHANNEL_KEY" \
             -t "$IMAGE:$GITHUB_RUN_NUMBER" .
           docker push "$IMAGE:$GITHUB_RUN_NUMBER"
 
