@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PackageCheck } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { deliveryMethodLabel } from '../../delivery/deliveryMethodLabel.js'
 import { isOrderMonth } from '../api/orderApi.js'
 import { deliveryTimeSlotLabel } from '../currentSubscriptionDisplay.js'
 import { useOrderStore } from '../stores/useOrderStore.js'
@@ -126,13 +127,7 @@ function backToOrders() {
           </div>
           <div>
             <dt>배송 방식</dt>
-            <dd>
-              {{
-                order.deliveryMethodCode === 'DOORSTEP'
-                  ? '문 앞 비대면 배송'
-                  : order.deliveryMethodCode
-              }}
-            </dd>
+            <dd>{{ deliveryMethodLabel(order.deliveryMethodCode) }}</dd>
           </div>
           <div v-if="order.otherDeliveryRequest">
             <dt>배송 요청</dt>
