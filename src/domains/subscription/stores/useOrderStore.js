@@ -37,14 +37,17 @@ export function createOrderStore(
       orders: [],
       listStatus: 'idle',
       listError: null,
+      listRequest: null,
       selectedOrderId: '',
       detail: null,
       detailStatus: 'idle',
       detailError: null,
+      detailRequest: null,
     }),
 
     actions: {
       clearSelectedOrder() {
+        this.detailRequest = null
         storageRemove(storage)
         this.selectedOrderId = ''
         this.detail = null
@@ -65,6 +68,7 @@ export function createOrderStore(
       selectOrder(orderId) {
         if (!isOrderId(orderId)) return false
         if (this.selectedOrderId !== orderId) {
+          this.detailRequest = null
           this.detail = null
           this.detailStatus = 'idle'
           this.detailError = null
@@ -78,13 +82,20 @@ export function createOrderStore(
         if (!force && ['success', 'empty', 'loading'].includes(this.listStatus)) return this.orders
         this.listStatus = 'loading'
         this.listError = null
+        this.listRequest = {}
+        const pending = this.listRequest
         try {
-          this.orders = await api.listOrders()
+          const orders = await api.listOrders()
+          if (this.listRequest !== pending) return []
+          this.orders = orders
           this.listStatus = this.orders.length ? 'success' : 'empty'
         } catch (error) {
+          if (this.listRequest !== pending) return []
           this.orders = []
           this.listStatus = 'error'
           this.listError = error
+        } finally {
+          if (this.listRequest === pending) this.listRequest = null
         }
         return this.orders
       },
@@ -95,13 +106,20 @@ export function createOrderStore(
         if (!force && ['success', 'loading'].includes(this.detailStatus)) return this.detail
         this.detailStatus = 'loading'
         this.detailError = null
+        this.detailRequest = {}
+        const pending = this.detailRequest
         try {
-          this.detail = await api.getOrder(orderId)
+          const detail = await api.getOrder(orderId)
+          if (this.detailRequest !== pending) return null
+          this.detail = detail
           this.detailStatus = 'success'
         } catch (error) {
+          if (this.detailRequest !== pending) return null
           this.detail = null
           this.detailStatus = 'error'
           this.detailError = error
+        } finally {
+          if (this.detailRequest === pending) this.detailRequest = null
         }
         return this.detail
       },

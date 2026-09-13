@@ -10,6 +10,7 @@ export function createCurrentSubscriptionStore(
       subscription: null,
       status: 'idle',
       error: null,
+      request: null,
     }),
 
     actions: {
@@ -19,13 +20,20 @@ export function createCurrentSubscriptionStore(
 
         this.status = 'loading'
         this.error = null
+        this.request = {}
+        const pending = this.request
         try {
-          this.subscription = await api.getCurrentSubscription()
+          const subscription = await api.getCurrentSubscription()
+          if (this.request !== pending) return null
+          this.subscription = subscription
           this.status = this.subscription ? 'success' : 'empty'
         } catch (error) {
+          if (this.request !== pending) return null
           this.subscription = null
           this.status = 'error'
           this.error = error
+        } finally {
+          if (this.request === pending) this.request = null
         }
         return this.subscription
       },
