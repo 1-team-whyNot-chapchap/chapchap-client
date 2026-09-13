@@ -9,7 +9,11 @@ import {
 } from '../currentSubscriptionDisplay.js'
 import { useCurrentSubscriptionStore } from '../stores/useCurrentSubscriptionStore.js'
 
-defineProps({ title: { type: String, default: '내 구독' }, changeNotice: Boolean })
+defineProps({
+  title: { type: String, default: '내 구독' },
+  changeNotice: Boolean,
+  showPlanDescription: { type: Boolean, default: true },
+})
 const subscriptionStore = useCurrentSubscriptionStore()
 const subscription = computed(() => subscriptionStore.subscription)
 
@@ -55,7 +59,7 @@ function retry() {
         <p v-if="subscription.periodStartDate">
           이용 기간 {{ subscription.periodStartDate }} ~ {{ subscription.periodEndDate }}
         </p>
-        <p>{{ subscription.plan?.description }}</p>
+        <p v-if="showPlanDescription">{{ subscription.plan?.description }}</p>
         <div class="ui-actions">
           <RouterLink class="button button-secondary" to="/subscription/rounds"
             >주문 일정 보기</RouterLink
