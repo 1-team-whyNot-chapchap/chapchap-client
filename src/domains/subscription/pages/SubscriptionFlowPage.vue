@@ -10,13 +10,13 @@ import {
 import {
   createFirstSubscriptionRequest,
   DELIVERY_TIME_SLOTS,
-  DELIVERY_WEEKDAYS,
   DELIVERY_WEEKDAY_LABELS,
 } from '../firstSubscriptionForm.js'
 import { useAddressStore } from '../stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
 import { usePlanStore } from '../stores/usePlanStore.js'
 import PaymentMethodPanel from '../components/PaymentMethodPanel.vue'
+import SubscriptionScheduleSelector from '../components/SubscriptionScheduleSelector.vue'
 
 const props = defineProps({ step: { type: Number, required: true } })
 const route = useRoute()
@@ -96,15 +96,6 @@ async function initialize() {
 }
 
 watch([planId, () => props.step], initialize, { immediate: true })
-
-function toggleWeekday(weekday) {
-  const selected = application.deliveryConditions.map((condition) => condition.weekday)
-  application.setDeliveryWeekdays(
-    selected.includes(weekday)
-      ? selected.filter((value) => value !== weekday)
-      : DELIVERY_WEEKDAYS.filter((value) => [...selected, weekday].includes(value)),
-  )
-}
 
 function updateCondition(weekday, changes) {
   application.updateDeliveryCondition(weekday, changes)
@@ -283,35 +274,11 @@ async function submit() {
             </p>
           </header>
           <section v-if="step === 1" class="flow-panel">
-            <div class="weekday-picker" role="group" aria-label="반복 배송 요일">
-              <button
-                v-for="weekday in DELIVERY_WEEKDAYS"
-                :key="weekday"
-                class="weekday-button"
-                :class="{
-                  'is-selected': application.deliveryConditions.some(
-                    (item) => item.weekday === weekday,
-                  ),
-                }"
-                type="button"
-                :aria-pressed="
-                  application.deliveryConditions.some((item) => item.weekday === weekday)
-                "
-                @click="toggleWeekday(weekday)"
-              >
-                {{ DELIVERY_WEEKDAY_LABELS[weekday].replace('요일', '') }}
-              </button>
-            </div>
-            <p class="flow-help">
-              월요일부터 토요일 중 필요한 요일만 선택할 수 있습니다. 최소 선택 일수는 없습니다.
-            </p>
-            <section class="fixed-menu-note">
-              <h2>고정 메뉴 안내</h2>
-              <p>
-                {{ plan.menus.length }}개 메뉴가 날짜 순번에 맞춰 제공됩니다. 메뉴·수량 선택은 구독
-                요청에 포함되지 않습니다.
-              </p>
-            </section>
+            <SubscriptionScheduleSelector
+              :model-value="application.deliveryConditions.map((item) => item.weekday)"
+              :plan="plan"
+              @update:model-value="application.setDeliveryWeekdays"
+            />
           </section>
           <section v-else-if="step === 2" class="flow-panel">
             <p v-if="addressStore.listStatus === 'loading'" class="flow-help" role="status">
