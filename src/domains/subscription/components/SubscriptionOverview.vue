@@ -65,6 +65,12 @@ function retry() {
             to="/subscription/settings"
             >구독 설정 변경</RouterLink
           >
+          <RouterLink
+            v-if="['SCHEDULED', 'IN_PROGRESS'].includes(subscription.subscriptionStatus)"
+            class="button button-secondary"
+            to="/subscription/cancel"
+            >구독 해지</RouterLink
+          >
         </div>
       </article>
       <section v-if="subscription.deliveryConditions.length" class="ui-surface">
