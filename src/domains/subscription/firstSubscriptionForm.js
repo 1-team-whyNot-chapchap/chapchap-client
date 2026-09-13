@@ -38,8 +38,7 @@ export function createDeliveryCondition(weekday) {
   }
 }
 
-export function createFirstSubscriptionRequest(planId, deliveryConditions) {
-  if (typeof planId !== 'string' || !UUID_V4.test(planId)) invalid('올바른 플랜을 선택해 주세요.')
+function validateWeekdays(deliveryConditions) {
   if (!Array.isArray(deliveryConditions) || !deliveryConditions.length) {
     invalid('배송 요일을 한 개 이상 선택해 주세요.')
   }
@@ -47,24 +46,69 @@ export function createFirstSubscriptionRequest(planId, deliveryConditions) {
     invalid('배송 요일은 최대 6개까지 선택할 수 있어요.')
 
   const weekdays = new Set()
-  const conditions = deliveryConditions.map((condition) => {
+  deliveryConditions.forEach((condition) => {
     if (!DELIVERY_WEEKDAYS.includes(condition?.weekday) || weekdays.has(condition.weekday)) {
       invalid('월요일부터 토요일까지 서로 다른 배송 요일을 선택해 주세요.')
     }
     weekdays.add(condition.weekday)
-    if (typeof condition.addressId !== 'string' || !UUID_V4.test(condition.addressId)) {
-      invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 배송지를 선택해 주세요.`)
+  })
+}
+
+function validateAddress(condition) {
+  if (typeof condition.addressId !== 'string' || !UUID_V4.test(condition.addressId)) {
+    invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 배송지를 선택해 주세요.`)
+  }
+}
+
+function validateMeal(condition) {
+  if (
+    !Number.isInteger(condition.mealQuantity) ||
+    condition.mealQuantity < 1 ||
+    condition.mealQuantity > 6
+  ) {
+    invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량은 1~6개로 설정해 주세요.`)
+  }
+  if (!DELIVERY_TIME_SLOTS.some((slot) => slot.value === condition.deliveryTimeSlot)) {
+    invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 배송 시간대를 선택해 주세요.`)
+  }
+}
+
+// 버튼 이동과 URL 직접 진입이 동일한 입력 기준을 사용한다.
+// addresses는 조회 성공 후에만 전달한다. 조회 실패를 빈 목록으로 대신하지 않는다.
+export function firstSubscriptionStepIssue(step, application, addresses) {
+  if (step < 2 || step > 5) return null
+  let requiredStep = 1
+  try {
+    validateWeekdays(application.deliveryConditions)
+    if (step >= 3) {
+      requiredStep = 2
+      for (const condition of application.deliveryConditions) {
+        validateAddress(condition)
+        if (addresses && !addresses.some((address) => address.addressId === condition.addressId)) {
+          invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 배송지를 다시 선택해 주세요.`)
+        }
+      }
     }
-    if (
-      !Number.isInteger(condition.mealQuantity) ||
-      condition.mealQuantity < 1 ||
-      condition.mealQuantity > 6
-    ) {
-      invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량은 1~6개로 설정해 주세요.`)
+    if (step >= 4) {
+      requiredStep = 3
+      application.deliveryConditions.forEach(validateMeal)
     }
-    if (!DELIVERY_TIME_SLOTS.some((slot) => slot.value === condition.deliveryTimeSlot)) {
-      invalid(`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 배송 시간대를 선택해 주세요.`)
+    if (step === 5 && !application.termsConfirmed) {
+      requiredStep = 4
+      invalid('필수 약관 동의 처리를 완료해 주세요.')
     }
+    return null
+  } catch (error) {
+    return { step: requiredStep, message: error.message }
+  }
+}
+
+export function createFirstSubscriptionRequest(planId, deliveryConditions) {
+  if (typeof planId !== 'string' || !UUID_V4.test(planId)) invalid('올바른 플랜을 선택해 주세요.')
+  validateWeekdays(deliveryConditions)
+  const conditions = deliveryConditions.map((condition) => {
+    validateAddress(condition)
+    validateMeal(condition)
     return {
       weekday: condition.weekday,
       mealQuantity: condition.mealQuantity,
