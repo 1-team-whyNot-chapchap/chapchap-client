@@ -26,7 +26,7 @@ export function createSummaryLoader({
       const result = await fetchSummary()
       if (stopped) return
       onChange({ ...result, error: false })
-      if (['COMPLETED', 'FAILED', 'DISABLED'].includes(result.status)) return
+      if (['COMPLETED', 'DISABLED'].includes(result.status)) return
     } catch {
       if (stopped) return
       onChange({ status: null, summary: null, error: true })

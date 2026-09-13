@@ -18,7 +18,11 @@ const emit = defineEmits(['navigate'])
         운영 시간은 고객지원에서 확인해 주세요.
       </p>
       <div class="home-support-notice__actions">
-        <button class="button button-primary" type="button" @click="emit('navigate', 'wf-036')">
+        <button
+          class="button button-primary"
+          type="button"
+          @click="emit('navigate', 'consultation-design')"
+        >
           상담 시작하기
           <ArrowRight :size="17" aria-hidden="true" />
         </button>

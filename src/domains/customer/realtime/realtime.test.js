@@ -4,6 +4,46 @@ import { createStompDecoder, createConsultationConnection } from './consultation
 import { createSseDecoder, createNotificationStream } from './notificationStream.js'
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 
+test('long server outage keeps retrying with bounded delay and recovers without refresh', async () => {
+  const jobs = [],
+    states = []
+  let requests = 0,
+    socket
+  const client = createConsultationConnection({
+    consultationId: 1,
+    url: 'ws://localhost',
+    ticket: async () => {
+      if (++requests <= 9) throw Error('offline')
+      return 'a'.repeat(43)
+    },
+    onState: (value) => states.push(value),
+    onMessage() {},
+    schedule: (fn, ms) => {
+      const job = { fn, ms, active: true }
+      jobs.push(job)
+      return job
+    },
+    cancel: (job) => {
+      if (job) job.active = false
+    },
+    connectSocket: () => (socket = { send() {}, close() {}, readyState: 1 }),
+  })
+  client.start()
+  await tick()
+  for (let index = 0; index < 9; index++) {
+    const job = jobs.find((value) => value.active)
+    assert.ok(job.ms <= 30000)
+    job.active = false
+    job.fn()
+    await tick()
+  }
+  socket.onmessage({ data: 'CONNECTED\nversion:1.2\n\n\0' })
+  assert.equal(states.at(-1), 'connected')
+  assert.equal(requests, 10)
+  client.stop()
+  assert.ok(jobs.every((job) => !job.active))
+})
+
 test('STOMP decoder handles fragmented messages, heartbeats and Korean JSON', () => {
   const frames = []
   const parse = createStompDecoder((frame) => frames.push(frame))
