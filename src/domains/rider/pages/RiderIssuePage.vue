@@ -1,16 +1,40 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { CircleAlert, ClipboardCheck } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import http from '../../../common/api/http.js'
+import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
+import { assignmentIssueOptions } from '../constants/assignmentIssueOptions.js'
 
 const emit = defineEmits(['navigate'])
-const issueType = ref('수령인 연락 불가')
+const route = useRoute()
+const api = createDeliveryExecutionApi(http)
+const issueCode = ref('')
 const description = ref('')
 const notice = ref('')
+const submitting = ref(false)
+const assignmentId = computed(() => String(route.query.assignmentId || ''))
+const isOtherIssue = computed(() => issueCode.value === 'OTHER')
 
-function submitIssue() {
-  notice.value =
-    '이슈 내용을 시연 화면에 기록했습니다. 실제 접수와 운영팀 알림은 서버 연동 후 처리됩니다.'
+async function submitIssue() {
+  if (!assignmentId.value || !issueCode.value || (isOtherIssue.value && !description.value.trim())) return
+
+  submitting.value = true
+  notice.value = ''
+  try {
+    await api.reportAssignmentIssue(assignmentId.value, {
+      issueCode: issueCode.value,
+      issueDetail: description.value.trim() || null,
+    })
+    notice.value = '배정 이슈를 운영팀에 보고했습니다.'
+    issueCode.value = ''
+    description.value = ''
+  } catch (error) {
+    notice.value = error.message || '배정 이슈를 보고하지 못했습니다.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -18,32 +42,35 @@ function submitIssue() {
   <section class="page rider-issue-page">
     <PageBackButton label="오늘 배송으로" @back="emit('navigate', 'rider-deliveries')" />
     <header>
-      <p class="ui-sample">시연 화면</p>
       <h1>배송 이슈를<br />빠르게 남겨주세요.</h1>
-      <p>이슈 접수는 배송 건·시간·처리 담당자를 서버에서 함께 기록해야 합니다.</p>
+      <p>현재 배정 전체의 수행이 어려운 사유를 선택하면 운영팀이 검토합니다.</p>
     </header>
 
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <form class="issue-form" @submit.prevent="submitIssue">
       <label>
         이슈 유형
-        <select v-model="issueType">
-          <option>수령인 연락 불가</option>
-          <option>주소·출입 정보 확인 필요</option>
-          <option>상품 상태 확인 필요</option>
-          <option>기타</option>
+        <select v-model="issueCode" required>
+          <option disabled value="">선택해 주세요</option>
+          <option v-for="option in assignmentIssueOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
         </select>
       </label>
       <label>
-        상황 설명
+        상황 설명{{ isOtherIssue ? '' : ' (선택)' }}
         <textarea
           v-model.trim="description"
           rows="5"
-          placeholder="배송 번호와 현재 상황을 입력하세요."
-          required
+          :placeholder="isOtherIssue ? '기타 사유를 입력해 주세요.' : '운영팀에 전달할 내용을 입력해 주세요.'"
+          :required="isOtherIssue"
         />
       </label>
-      <button class="button button-primary" type="submit">
+      <button
+        class="button button-primary"
+        type="submit"
+        :disabled="submitting || !assignmentId || !issueCode || (isOtherIssue && !description.trim())"
+      >
         <ClipboardCheck :size="17" aria-hidden="true" />이슈 기록하기
       </button>
     </form>
