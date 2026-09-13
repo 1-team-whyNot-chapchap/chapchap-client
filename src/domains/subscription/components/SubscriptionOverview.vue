@@ -21,6 +21,7 @@ function retry() {
 </script>
 <template>
   <section class="workspace-ui subscription-overview">
+    <slot name="navigation" />
     <header class="ui-heading">
       <div>
         <h1>{{ title }}</h1>
