@@ -9,14 +9,15 @@ import {
 } from '../currentSubscriptionDisplay.js'
 import {
   createFirstSubscriptionRequest,
+  firstSubscriptionStepIssue,
   DELIVERY_TIME_SLOTS,
-  DELIVERY_WEEKDAYS,
   DELIVERY_WEEKDAY_LABELS,
 } from '../firstSubscriptionForm.js'
 import { useAddressStore } from '../stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
 import { usePlanStore } from '../stores/usePlanStore.js'
 import PaymentMethodPanel from '../components/PaymentMethodPanel.vue'
+import SubscriptionScheduleSelector from '../components/SubscriptionScheduleSelector.vue'
 
 const props = defineProps({ step: { type: Number, required: true } })
 const route = useRoute()
@@ -28,15 +29,20 @@ const paymentPanel = ref(null)
 const paymentReady = ref(false)
 const checkingPayment = ref(false)
 const agreeingTerms = ref(false)
+const entryStatus = ref('checking')
+const entryError = ref('')
 let initialization = 0
 let mounted = true
 onBeforeUnmount(() => {
   mounted = false
   initialization += 1
   application.invalidatePreview()
+  application.enterStep(null)
 })
-const validationMessage = computed(
-  () => application.error?.serverMessage || application.error?.message || '',
+const validationMessage = computed(() =>
+  application.errorStep === props.step
+    ? application.error?.serverMessage || application.error?.message || ''
+    : '',
 )
 const planId = computed(() => (typeof route.query.planId === 'string' ? route.query.planId : ''))
 const plan = computed(() => planStore.planById(application.planId))
@@ -50,6 +56,7 @@ const previewReady = computed(
 )
 const hasAcceptedAllTerms = computed(
   () =>
+    application.termsStatus === 'success' &&
     application.requiredTerms.length > 0 &&
     application.requiredTerms.every((term) => application.agreedTerms[term.termsType]),
 )
@@ -62,49 +69,84 @@ function navigate(name) {
   router.push({ name, query: flowQuery() })
 }
 
-async function initialize() {
+async function redirectIssue(issue) {
+  application.setError(new Error(issue.message), issue.step, 'redirect')
+  await router.replace({ name: `wf-0${12 + issue.step}`, query: flowQuery() })
+}
+
+async function initialize(force = false) {
+  if (planId.value) application.begin(planId.value)
+  application.enterStep(props.step)
   const current = ++initialization
-  const active = () => mounted && current === initialization
+  const session = application.session
+  const active = () => mounted && current === initialization && session === application.session
+  entryStatus.value = 'checking'
+  entryError.value = ''
+  paymentReady.value = false
   application.invalidatePreview()
   if (!planId.value) return
-  application.begin(planId.value)
-  if (props.step === 5) {
-    if (!requestOrMessage()) {
-      application.error = new Error('신청 정보가 없습니다. 배송 요일부터 다시 확인해 주세요.')
-      await router.replace({ name: 'wf-013', query: flowQuery() })
-      return
-    }
-    if (!hasAcceptedAllTerms.value) {
-      application.error = new Error('필수 약관을 확인하고 동의해 주세요.')
-      await router.replace({ name: 'wf-016', query: flowQuery() })
-      return
-    }
-  }
-  await planStore.fetchPlan(planId.value)
+  await planStore.fetchPlan(planId.value, force)
   if (!active()) return
+  if (planStore.detailStatuses[planId.value] !== 'success') return
+  const weekdayIssue =
+    props.step <= 5 ? firstSubscriptionStepIssue(Math.min(props.step, 2), application) : null
+  if (weekdayIssue) return redirectIssue(weekdayIssue)
   if (props.step >= 2) {
-    await addressStore.fetchAddresses()
+    await addressStore.fetchAddresses(props.step <= 5)
     if (!active()) return
-    application.applyDefaultAddress(
-      addresses.value.find((address) => address.isDefault)?.addressId ||
-        addresses.value[0]?.addressId,
-    )
+    if (props.step <= 5 && !['success', 'empty'].includes(addressStore.listStatus)) {
+      entryStatus.value = 'error'
+      entryError.value = '배송지를 불러오지 못했습니다. 다시 시도해 주세요.'
+      return
+    }
+    // 배송지 입력 화면에서만 기본값을 채운다. URL 진입 검사에서 누락을 숨기지 않는다.
+    if (props.step === 2 || props.step > 5) {
+      application.applyDefaultAddress(
+        addresses.value.find((address) => address.isDefault)?.addressId ||
+          addresses.value[0]?.addressId,
+      )
+    }
   }
+  const inputIssue = firstSubscriptionStepIssue(
+    Math.min(props.step, 4),
+    application,
+    addresses.value,
+  )
+  if (props.step <= 5 && inputIssue) return redirectIssue(inputIssue)
   if (props.step >= 4) await application.fetchRequiredTerms()
   if (!active()) return
+  const issue = firstSubscriptionStepIssue(props.step, application, addresses.value)
+  if (issue) return redirectIssue(issue)
+  entryStatus.value = 'ready'
   if (props.step === 5) await requestPreview()
 }
 
-watch([planId, () => props.step], initialize, { immediate: true })
+watch(
+  () => application.session,
+  () => {
+    initialization += 1
+    entryStatus.value = 'checking'
+    paymentReady.value = false
+  },
+  { flush: 'sync' },
+)
+watch([planId, () => props.step], () => initialize(), { immediate: true })
 
-function toggleWeekday(weekday) {
-  const selected = application.deliveryConditions.map((condition) => condition.weekday)
-  application.setDeliveryWeekdays(
-    selected.includes(weekday)
-      ? selected.filter((value) => value !== weekday)
-      : DELIVERY_WEEKDAYS.filter((value) => [...selected, weekday].includes(value)),
-  )
-}
+// 입력값이 바뀌었을 때만 재검사한다. 서버 실패나 이동 직후의 안내를 무조건 지우지 않는다.
+watch(
+  [() => application.deliveryConditions, () => application.agreedTerms],
+  () => {
+    if (application.errorKind !== 'validation' || application.errorStep !== props.step) return
+    if (props.step === 4) {
+      if (hasAcceptedAllTerms.value) application.clearError()
+    } else if (props.step <= 3) {
+      const issue = firstSubscriptionStepIssue(props.step + 1, application, addresses.value)
+      if (issue) application.setError(new Error(issue.message), props.step, 'validation')
+      else application.clearError()
+    }
+  },
+  { deep: true },
+)
 
 function updateCondition(weekday, changes) {
   application.updateDeliveryCondition(weekday, changes)
@@ -134,7 +176,7 @@ function requestOrMessage() {
   try {
     return createFirstSubscriptionRequest(application.planId, application.deliveryConditions)
   } catch (error) {
-    application.error = error
+    application.setError(error, props.step, 'validation')
     return null
   }
 }
@@ -148,40 +190,35 @@ function goPrevious() {
 }
 
 function goNext() {
-  application.error = null
-  if (props.step === 1) {
-    if (!application.deliveryConditions.length) {
-      application.error = new Error('배송 요일을 한 개 이상 선택해 주세요.')
-      return
-    }
-    navigate('wf-014')
-  } else if (props.step === 2) {
-    if (!addresses.value.length)
-      application.error = new Error('구독에 사용할 배송지를 먼저 등록해 주세요.')
-    else if (requestOrMessage()) navigate('wf-015')
-  } else if (props.step === 3 && requestOrMessage()) {
-    navigate('wf-016')
+  if (entryStatus.value !== 'ready') return
+  application.clearError()
+  const issue = firstSubscriptionStepIssue(props.step + 1, application, addresses.value)
+  if (issue) {
+    application.setError(new Error(issue.message), props.step, 'validation')
+    return
   }
+  if (props.step >= 1 && props.step <= 3) navigate(`wf-0${13 + props.step}`)
 }
 
 async function continueToPayment() {
-  if (agreeingTerms.value || props.step !== 4) return
-  application.error = null
+  if (agreeingTerms.value || props.step !== 4 || entryStatus.value !== 'ready') return
+  application.clearError()
   const request = requestOrMessage()
   if (!request) return
   if (!hasAcceptedAllTerms.value) {
-    application.error = new Error('모든 필수 약관에 동의해 주세요.')
+    application.setError(new Error('모든 필수 약관에 동의해 주세요.'), 4, 'validation')
     return
   }
   const current = initialization
   agreeingTerms.value = true
   try {
-    await application.agreeRequiredTerms()
+    if (!(await application.agreeRequiredTerms())) return
     if (mounted && props.step === 4 && current === initialization) navigate('wf-017')
   } catch (error) {
     if (!mounted || current !== initialization) return
-    application.error = error
-    if (error?.code === 'TERMS_VERSION_MISMATCH') await application.fetchRequiredTerms(true)
+    application.setError(error, 4)
+    if (['TERMS_002', 'TERMS_VERSION_MISMATCH'].includes(error?.code))
+      await application.fetchRequiredTerms(true)
   } finally {
     agreeingTerms.value = false
   }
@@ -190,31 +227,32 @@ async function continueToPayment() {
 async function requestPreview() {
   if (props.step !== 5 || application.previewStatus === 'loading') return
   const request = requestOrMessage()
-  if (!request || !hasAcceptedAllTerms.value) return
+  if (!request || !hasAcceptedAllTerms.value || !application.termsConfirmed) return
   await application.requestPreview(request)
 }
 
 async function submit() {
   if (checkingPayment.value || application.submitStatus === 'loading') return
-  application.error = null
+  application.clearError()
   if (!paymentReady.value) {
-    application.error = new Error('결제에 사용할 현재 결제수단을 먼저 확인해 주세요.')
+    application.setError(new Error('결제에 사용할 현재 결제수단을 먼저 확인해 주세요.'), 5)
     return
   }
   const request = requestOrMessage()
   if (!request || !previewReady.value) {
-    application.error = new Error('예상 결제금액을 먼저 확인해 주세요.')
+    application.setError(new Error('예상 결제금액을 먼저 확인해 주세요.'), 5)
     return
   }
   checkingPayment.value = true
   try {
-    await application.agreeRequiredTerms()
+    if (!(await application.agreeRequiredTerms())) return
     if (!(await paymentPanel.value?.verifyCurrent())) return
     if (!mounted || props.step !== 5) return
     if ((await application.submit(request)) && mounted) navigate('wf-018')
   } catch (error) {
-    application.error = error
-    if (error?.code === 'TERMS_VERSION_MISMATCH') await application.fetchRequiredTerms(true)
+    application.setError(error, 5)
+    if (['TERMS_002', 'TERMS_VERSION_MISMATCH'].includes(error?.code))
+      await application.fetchRequiredTerms(true)
   } finally {
     checkingPayment.value = false
   }
@@ -257,11 +295,36 @@ async function submit() {
           <h1>플랜 정보를 확인할 수 없어요.</h1>
           <p>판매 상태를 확인한 뒤 다시 시도해 주세요.</p>
           <button
+            v-if="step <= 5"
+            class="button button-secondary"
+            type="button"
+            @click="initialize(true)"
+          >
+            다시 시도
+          </button>
+          <button
             class="button button-primary"
             type="button"
             @click="router.push({ name: 'plans' })"
           >
             플랜 목록
+          </button>
+        </section>
+        <section
+          v-else-if="step <= 5 && entryStatus === 'checking'"
+          class="ui-empty flow-empty"
+          aria-busy="true"
+        >
+          신청 정보를 확인하고 있어요.
+        </section>
+        <section
+          v-else-if="step <= 5 && entryStatus === 'error'"
+          class="ui-empty flow-empty"
+          role="alert"
+        >
+          <p>{{ entryError }}</p>
+          <button class="button button-secondary" type="button" @click="initialize(true)">
+            다시 시도
           </button>
         </section>
         <template v-else-if="plan">
@@ -283,35 +346,11 @@ async function submit() {
             </p>
           </header>
           <section v-if="step === 1" class="flow-panel">
-            <div class="weekday-picker" role="group" aria-label="반복 배송 요일">
-              <button
-                v-for="weekday in DELIVERY_WEEKDAYS"
-                :key="weekday"
-                class="weekday-button"
-                :class="{
-                  'is-selected': application.deliveryConditions.some(
-                    (item) => item.weekday === weekday,
-                  ),
-                }"
-                type="button"
-                :aria-pressed="
-                  application.deliveryConditions.some((item) => item.weekday === weekday)
-                "
-                @click="toggleWeekday(weekday)"
-              >
-                {{ DELIVERY_WEEKDAY_LABELS[weekday].replace('요일', '') }}
-              </button>
-            </div>
-            <p class="flow-help">
-              월요일부터 토요일 중 필요한 요일만 선택할 수 있습니다. 최소 선택 일수는 없습니다.
-            </p>
-            <section class="fixed-menu-note">
-              <h2>고정 메뉴 안내</h2>
-              <p>
-                {{ plan.menus.length }}개 메뉴가 날짜 순번에 맞춰 제공됩니다. 메뉴·수량 선택은 구독
-                요청에 포함되지 않습니다.
-              </p>
-            </section>
+            <SubscriptionScheduleSelector
+              :model-value="application.deliveryConditions.map((item) => item.weekday)"
+              :plan="plan"
+              @update:model-value="application.setDeliveryWeekdays"
+            />
           </section>
           <section v-else-if="step === 2" class="flow-panel">
             <p v-if="addressStore.listStatus === 'loading'" class="flow-help" role="status">
@@ -329,6 +368,9 @@ async function submit() {
                     :value="condition.addressId"
                     @change="updateCondition(condition.weekday, { addressId: $event.target.value })"
                   >
+                    <option v-if="!selectedAddress(condition.addressId)" value="" disabled>
+                      배송지를 선택해 주세요.
+                    </option>
                     <option
                       v-for="address in addresses"
                       :key="address.addressId"

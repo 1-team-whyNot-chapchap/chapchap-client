@@ -12,6 +12,10 @@ export function createFirstSubscriptionStore(
       deliveryConditions: [],
       requiredTerms: [],
       agreedTerms: {},
+      session: {},
+      termsRequest: null,
+      agreementRequest: null,
+      termsConfirmed: false,
       preview: null,
       previewRequest: null,
       result: null,
@@ -19,8 +23,37 @@ export function createFirstSubscriptionStore(
       previewStatus: 'idle',
       submitStatus: 'idle',
       error: null,
+      errorStep: null,
+      errorKind: null,
+      activeStep: null,
     }),
     actions: {
+      clearError() {
+        this.error = null
+        this.errorStep = null
+        this.errorKind = null
+      },
+      setError(error, step, kind = 'request') {
+        this.error = error
+        this.errorStep = step
+        this.errorKind = kind
+      },
+      enterStep(step) {
+        // URL 접근 제한의 안내만 목적지까지 전달하고, 일반 오류는 단계 이동 시 비운다.
+        if (this.errorKind === 'redirect' && (step === null || step === this.errorStep)) {
+          if (step !== null) this.errorKind = 'validation'
+        } else {
+          this.clearError()
+        }
+        if (this.activeStep !== step) {
+          if (this.termsStatus === 'loading') {
+            this.termsRequest = null
+            this.termsStatus = 'idle'
+          }
+          this.agreementRequest = null
+        }
+        this.activeStep = step
+      },
       invalidatePreview() {
         this.previewRequest = null
         this.preview = null
@@ -57,44 +90,66 @@ export function createFirstSubscriptionStore(
       async fetchRequiredTerms(force = false) {
         if (!force && ['success', 'loading'].includes(this.termsStatus)) return this.requiredTerms
         this.invalidatePreview()
+        this.termsConfirmed = false
+        this.agreementRequest = null
+        this.termsRequest = {}
+        const pending = this.termsRequest
         this.termsStatus = 'loading'
-        this.error = null
+        this.clearError()
         try {
-          this.requiredTerms = await api.getRequiredTerms()
+          const terms = await api.getRequiredTerms()
+          if (this.termsRequest !== pending) return []
+          if (!terms.length) throw new Error('필수 약관을 확인할 수 없습니다. 다시 시도해 주세요.')
+          this.requiredTerms = terms
           this.agreedTerms = Object.fromEntries(
             this.requiredTerms.map((term) => [term.termsType, false]),
           )
           this.termsStatus = 'success'
         } catch (error) {
+          if (this.termsRequest !== pending) return []
           this.requiredTerms = []
           this.termsStatus = 'error'
-          this.error = error
+          this.setError(error, 4)
         }
         return this.requiredTerms
       },
       setTermAgreement(termsType, agreed) {
+        this.termsConfirmed = false
+        this.agreementRequest = null
         this.agreedTerms = { ...this.agreedTerms, [termsType]: agreed }
         this.invalidatePreview()
       },
       async agreeRequiredTerms() {
         if (
+          this.termsStatus !== 'success' ||
           !this.requiredTerms.length ||
           this.requiredTerms.some((term) => !this.agreedTerms[term.termsType])
         ) {
           throw new Error('모든 필수 약관에 동의해 주세요.')
         }
-        await Promise.all(
-          this.requiredTerms.map((term) =>
-            api.agreeRequiredTerms({ termsType: term.termsType, version: term.version }),
-          ),
-        )
+        this.termsConfirmed = false
+        this.agreementRequest = {}
+        const pending = this.agreementRequest
+        try {
+          await Promise.all(
+            this.requiredTerms.map((term) =>
+              api.agreeRequiredTerms({ termsType: term.termsType, version: term.version }),
+            ),
+          )
+          if (this.agreementRequest !== pending) return false
+          this.termsConfirmed = true
+          return true
+        } catch (error) {
+          if (this.agreementRequest !== pending) return false
+          throw error
+        }
       },
       async requestPreview(request) {
         this.invalidatePreview()
         this.previewRequest = {}
         const pending = this.previewRequest
         this.previewStatus = 'loading'
-        this.error = null
+        this.clearError()
         try {
           const preview = await api.preview(request)
           if (this.previewRequest !== pending) return null
@@ -104,21 +159,25 @@ export function createFirstSubscriptionStore(
         } catch (error) {
           if (this.previewRequest !== pending) return null
           this.previewStatus = 'error'
-          this.error = error
+          this.setError(error, 5)
           return null
         }
       },
       async submit(request) {
         if (this.submitStatus === 'loading') return null
         this.submitStatus = 'loading'
-        this.error = null
+        this.clearError()
+        const session = this.session
         try {
-          this.result = await api.subscribe(request)
+          const result = await api.subscribe(request)
+          if (this.session !== session) return null
+          this.result = result
           this.submitStatus = 'success'
           return this.result
         } catch (error) {
+          if (this.session !== session) return null
           this.submitStatus = 'error'
-          this.error = error
+          this.setError(error, 5)
           return null
         }
       },
