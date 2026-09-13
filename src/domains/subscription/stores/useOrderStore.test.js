@@ -131,3 +131,74 @@ test('주문 목록과 선택한 주문 상세를 서버에서 읽는다', async
   store.selectOrder(ORDER_ID)
   assert.equal((await store.fetchSelectedOrder()).menuName, '샐러드')
 })
+
+test('월 변경 뒤 늦은 달력과 목록 응답은 현재 월 데이터를 덮어쓰지 않는다', async () => {
+  setActivePinia(createPinia())
+  const oldCalendar = deferred()
+  const oldHistory = deferred()
+  const store = createOrderStore(
+    {
+      listCalendarOrders: (month) =>
+        month === '2026-09'
+          ? oldCalendar.promise
+          : Promise.resolve({ month, orders: [{ orderId: 'october' }] }),
+      listOrderHistory: (month, page) =>
+        month === '2026-09'
+          ? oldHistory.promise
+          : Promise.resolve(history(month, page, [{ orderId: 'october' }])),
+    },
+    createStorage(),
+    'subscription-order-month-race-test',
+  )()
+
+  const oldCalendarRequest = store.fetchCalendarOrders('2026-09')
+  const oldHistoryRequest = store.fetchOrderHistory('2026-09', 1)
+  await store.fetchCalendarOrders('2026-10')
+  await store.fetchOrderHistory('2026-10', 1)
+  oldCalendar.resolve({ month: '2026-09', orders: [{ orderId: 'september' }] })
+  oldHistory.resolve(history('2026-09', 1, [{ orderId: 'september' }]))
+  await Promise.all([oldCalendarRequest, oldHistoryRequest])
+
+  assert.equal(store.calendarMonth, '2026-10')
+  assert.deepEqual(store.calendarOrders, [{ orderId: 'october' }])
+  assert.equal(store.history.month, '2026-10')
+  assert.deepEqual(store.history.orders, [{ orderId: 'october' }])
+})
+
+test('주문 일정 조회 중 초기화하면 이전 계정 응답을 표시하지 않는다', async () => {
+  setActivePinia(createPinia())
+  const oldCalendar = deferred()
+  const oldHistory = deferred()
+  const store = createOrderStore(
+    { listCalendarOrders: () => oldCalendar.promise, listOrderHistory: () => oldHistory.promise },
+    createStorage(),
+    'subscription-order-reset-race-test',
+  )()
+
+  const pending = Promise.all([
+    store.fetchCalendarOrders('2026-09'),
+    store.fetchOrderHistory('2026-09', 1),
+  ])
+  store.$reset()
+  oldCalendar.resolve({ month: '2026-09', orders: [{ orderId: 'old' }] })
+  oldHistory.resolve(history('2026-09', 1, [{ orderId: 'old' }]))
+  await pending
+
+  assert.equal(store.calendarStatus, 'idle')
+  assert.deepEqual(store.calendarOrders, [])
+  assert.equal(store.historyStatus, 'idle')
+  assert.deepEqual(store.history.orders, [])
+})
+
+function history(month, page, orders) {
+  return {
+    month,
+    orders,
+    page,
+    size: 3,
+    totalElements: orders.length,
+    totalPages: orders.length ? 1 : 0,
+    hasPrevious: false,
+    hasNext: false,
+  }
+}

@@ -27,6 +27,19 @@ function storageRemove(storage) {
   }
 }
 
+function emptyHistory(month = '', page = 1) {
+  return {
+    month,
+    orders: [],
+    page,
+    size: 3,
+    totalElements: 0,
+    totalPages: 0,
+    hasPrevious: false,
+    hasNext: false,
+  }
+}
+
 export function createOrderStore(
   api = orderApi,
   storage = typeof window === 'undefined' ? null : window.sessionStorage,
@@ -38,6 +51,15 @@ export function createOrderStore(
       listStatus: 'idle',
       listError: null,
       listRequest: null,
+      calendarMonth: '',
+      calendarOrders: [],
+      calendarStatus: 'idle',
+      calendarError: null,
+      calendarRequest: null,
+      history: emptyHistory(),
+      historyStatus: 'idle',
+      historyError: null,
+      historyRequest: null,
       selectedOrderId: '',
       detail: null,
       detailStatus: 'idle',
@@ -98,6 +120,66 @@ export function createOrderStore(
           if (this.listRequest === pending) this.listRequest = null
         }
         return this.orders
+      },
+
+      async fetchCalendarOrders(month, force = false) {
+        if (
+          !force &&
+          this.calendarMonth === month &&
+          ['success', 'empty', 'loading'].includes(this.calendarStatus)
+        ) {
+          return this.calendarOrders
+        }
+        this.calendarMonth = month
+        this.calendarOrders = []
+        this.calendarStatus = 'loading'
+        this.calendarError = null
+        this.calendarRequest = {}
+        const pending = this.calendarRequest
+        try {
+          const response = await api.listCalendarOrders(month)
+          if (this.calendarRequest !== pending) return []
+          this.calendarMonth = response.month
+          this.calendarOrders = response.orders
+          this.calendarStatus = this.calendarOrders.length ? 'success' : 'empty'
+        } catch (error) {
+          if (this.calendarRequest !== pending) return []
+          this.calendarOrders = []
+          this.calendarStatus = 'error'
+          this.calendarError = error
+        } finally {
+          if (this.calendarRequest === pending) this.calendarRequest = null
+        }
+        return this.calendarOrders
+      },
+
+      async fetchOrderHistory(month, page, force = false) {
+        if (
+          !force &&
+          this.history.month === month &&
+          this.history.page === page &&
+          ['success', 'empty', 'loading'].includes(this.historyStatus)
+        ) {
+          return this.history
+        }
+        this.history = emptyHistory(month, page)
+        this.historyStatus = 'loading'
+        this.historyError = null
+        this.historyRequest = {}
+        const pending = this.historyRequest
+        try {
+          const response = await api.listOrderHistory(month, page)
+          if (this.historyRequest !== pending) return this.history
+          this.history = response
+          this.historyStatus = response.orders.length ? 'success' : 'empty'
+        } catch (error) {
+          if (this.historyRequest !== pending) return this.history
+          this.historyStatus = 'error'
+          this.historyError = error
+        } finally {
+          if (this.historyRequest === pending) this.historyRequest = null
+        }
+        return this.history
       },
 
       async fetchSelectedOrder(force = false) {

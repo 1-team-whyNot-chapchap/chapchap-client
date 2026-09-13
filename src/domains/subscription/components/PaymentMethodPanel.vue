@@ -1,11 +1,19 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
+import { useRoute } from 'vue-router'
 import { CreditCard, Plus, ShieldCheck, Trash2 } from 'lucide-vue-next'
 import http, { authSession } from '../../../common/api/http.js'
 import { dialogPt } from '../../../common/constants/primeUiPt'
 import { createAccountDataApi } from '../api/accountDataApi.js'
 import { issueBillingKey } from '../portOneBilling.js'
+import { billingDraft, billingUserId } from '../mobileBillingContext.js'
+import {
+  mobileBillingContext,
+  recoverAbandonedBilling,
+  takeBillingReturnNotice,
+} from '../mobileBillingReturn.js'
+import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
 import {
   createPaymentMethodManager,
   paymentMethodState,
@@ -16,9 +24,46 @@ const props = defineProps({ allowDelete: Boolean, disabled: Boolean })
 const emit = defineEmits(['ready'])
 const state = reactive(paymentMethodState())
 const confirmation = ref(null)
+const route = useRoute()
+const application = useFirstSubscriptionStore()
+async function issue() {
+  const startingUser = billingUserId(authSession.state.user)
+  let started = null
+  let context
+  try {
+    return await issueBillingKey({
+      prepareRedirect: () => {
+        if (!startingUser || startingUser !== billingUserId(authSession.state.user))
+          throw new Error('로그인 상태가 변경되었습니다. 다시 진행해 주세요.')
+        const source = route.path === '/subscribe/payment' ? 'subscription' : 'methods'
+        if (
+          source === 'methods' &&
+          !['/mypage/payment-methods', '/mypage/payment-methods/register'].includes(route.path)
+        )
+          throw new Error('카드 등록 시작 화면을 확인해 주세요.')
+        context = mobileBillingContext()
+        started = context.begin({
+          userId: startingUser,
+          source,
+          origin: window.location.origin,
+          draft: source === 'subscription' ? billingDraft(application) : null,
+        })
+        return started.redirectUrl
+      },
+    })
+  } catch (error) {
+    if (started && context.read()?.id === started.id) context.clear()
+    // Do not show storage/provider errors that may contain implementation details.
+    if (error?.name === 'SecurityError' || error?.name === 'QuotaExceededError')
+      throw new Error(
+        '브라우저에서 등록 정보를 보관할 수 없습니다. 저장소 사용 설정을 확인해 주세요.',
+      )
+    throw error
+  }
+}
 const manager = createPaymentMethodManager({
   api: createAccountDataApi(http),
-  issue: issueBillingKey,
+  issue,
   state,
   getOwner: () => authSession.state.user,
 })
@@ -49,8 +94,30 @@ async function execute() {
 function closeConfirmation(visible) {
   if (!visible && !locked.value) confirmation.value = null
 }
-onMounted(manager.load)
+function handlePageShow(event) {
+  // A restored document may still hold the SDK's unresolved promise and busy state.
+  if (event.persisted) {
+    try {
+      if (mobileBillingContext().read()?.status === 'pending') window.location.reload()
+    } catch {
+      /* next registration fails closed */
+    }
+  }
+}
+onMounted(async () => {
+  window.addEventListener('pageshow', handlePageShow)
+  try {
+    if (route.path.startsWith('/mypage/payment-methods'))
+      recoverAbandonedBilling(authSession.state.user, 'methods')
+  } catch {
+    state.error = '이전 카드 등록 상태를 확인하지 못했습니다. 목록을 확인해 주세요.'
+  }
+  const notice = takeBillingReturnNotice(billingUserId(authSession.state.user))
+  await manager.load()
+  if (notice) state.notice = notice
+})
 onBeforeUnmount(() => {
+  window.removeEventListener('pageshow', handlePageShow)
   manager.dispose()
   emit('ready', false)
 })
