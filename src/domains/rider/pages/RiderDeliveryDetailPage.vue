@@ -20,6 +20,7 @@ const loading = ref(false)
 const panel = ref('')
 const method = ref('')
 const place = ref('')
+const customPlace = ref('')
 const contacted = ref(false)
 const contactedAt = ref('')
 const contactResult = ref('')
@@ -42,11 +43,14 @@ const hasDelivering = computed(() =>
   assignment.value?.deliveries.some((item) => item.status === 'DELIVERING'),
 )
 const finished = computed(() => ['DELIVERED', 'FAILED'].includes(delivery.value?.status))
+const storageLocation = computed(() =>
+  place.value === '기타' ? customPlace.value.trim() : place.value,
+)
 const canComplete = computed(
   () =>
     method.value === '직접 전달' ||
     (method.value === '비대면 전달' &&
-      place.value.trim() &&
+      storageLocation.value &&
       photo.value &&
       (delivery.value?.requestedHandoffType !== 'DIRECT' ||
         (contacted.value && contactedAt.value && contactResult.value.trim()))),
@@ -55,7 +59,7 @@ const completionRequirementMessage = computed(() => {
   if (method.value === '직접 전달') return ''
 
   const missing = []
-  if (!place.value.trim()) missing.push('보관 위치')
+  if (!storageLocation.value) missing.push('보관 위치')
   if (!photo.value) missing.push('완료 사진')
   if (delivery.value?.requestedHandoffType === 'DIRECT') {
     if (!contactedAt.value) missing.push('연락 시도 시각')
@@ -99,6 +103,7 @@ async function start() {
 function openComplete() {
   method.value = handoffLabel[delivery.value.requestedHandoffType] || '비대면 전달'
   place.value = ''
+  customPlace.value = ''
   photo.value = null
   photoError.value = ''
   contacted.value = false
@@ -125,11 +130,11 @@ async function complete() {
       delivery.value.deliveryId,
       {
         actualHandoffType: method.value === '직접 전달' ? 'DIRECT' : 'DOORSTEP',
-        storageLocation: place.value.trim() || null,
+        storageLocation: method.value === '직접 전달' ? null : storageLocation.value,
         contactAttemptedAt: contactedAt.value ? new Date(contactedAt.value).toISOString() : null,
         contactResult: contactResult.value ? 'CONTACTED' : null,
       },
-      photo.value,
+      method.value === '직접 전달' ? null : photo.value,
     )
     await load()
     panel.value = ''
@@ -271,7 +276,21 @@ onMounted(load)
           </select></label
         >
         <template v-if="method === '비대면 전달'"
-          ><label class="ui-field">보관 위치<textarea v-model="place" rows="2" required /></label
+          ><label class="ui-field"
+            >보관 위치<select v-model="place" required>
+              <option disabled value="">선택해 주세요</option>
+              <option>현관문 앞</option>
+              <option>경비실</option>
+              <option>무인보관함</option>
+              <option>기타</option>
+            </select></label
+          ><label v-if="place === '기타'" class="ui-field"
+            >보관 위치 직접 입력<input
+              v-model="customPlace"
+              required
+              maxlength="100"
+              placeholder="예: 지하 1층 공동현관 우편함 앞"
+          /></label>
           ><FilePicker
             v-model="photo"
             label="완료 사진"
