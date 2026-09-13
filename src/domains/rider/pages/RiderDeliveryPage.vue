@@ -9,6 +9,8 @@ import { createDeliveryExecutionApi } from '../api/deliveryExecutionApi.js'
 const api = createDeliveryExecutionApi(http)
 const assignments = ref([])
 const loadError = ref('')
+const actionNotice = ref('')
+const acknowledging = ref(false)
 async function load() {
   loadError.value = ''
   try {
@@ -19,6 +21,29 @@ async function load() {
   }
 }
 onMounted(load)
+const acknowledgeableAssignments = computed(() =>
+  assignments.value.filter((assignment) => assignment.status === 'ASSIGNED'),
+)
+const canAcknowledge = computed(() => acknowledgeableAssignments.value.length > 0)
+async function acknowledgeAll() {
+  if (!canAcknowledge.value || acknowledging.value) return
+
+  acknowledging.value = true
+  actionNotice.value = ''
+  try {
+    await Promise.all(
+      acknowledgeableAssignments.value.map((assignment) =>
+        api.acknowledgeAssignment(assignment.assignmentId),
+      ),
+    )
+    await load()
+    actionNotice.value = '배정 확인을 저장했습니다.'
+  } catch (error) {
+    actionNotice.value = error.message || '배정 확인을 저장하지 못했습니다.'
+  } finally {
+    acknowledging.value = false
+  }
+}
 const quantity = computed(() =>
   assignments.value.reduce((total, item) => total + item.lunchboxQuantity, 0),
 )
@@ -94,8 +119,16 @@ const status = computed(() => statusLabel[assignments.value[0]?.status] || '배�
       </section>
       <div class="rider-wire-actions">
         <RouterLink class="button button-secondary" to="/rider/issues">이슈 제기</RouterLink>
-        <button class="button button-secondary" type="button" @click="load">새로고침</button>
+        <button
+          class="button button-primary"
+          type="button"
+          :disabled="!canAcknowledge || acknowledging"
+          @click="acknowledgeAll"
+        >
+          {{ acknowledging ? '확인 중' : canAcknowledge ? '배정 확인' : '확인 완료' }}
+        </button>
       </div>
+      <p v-if="actionNotice" class="ui-note" role="status">{{ actionNotice }}</p>
       <p v-if="loadError" class="ui-note" role="alert">{{ loadError }}</p>
     </DesignPreview>
   </div>
