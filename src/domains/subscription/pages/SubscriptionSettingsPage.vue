@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Minus, Plus } from 'lucide-vue-next'
+import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import {
   DELIVERY_TIME_SLOTS,
   DELIVERY_WEEKDAYS,
@@ -74,6 +75,7 @@ function retry() {
 
 <template>
   <section class="workspace-ui setting-change-page">
+    <PageBackButton to="/subscription" label="내 구독" />
     <header class="ui-heading">
       <div>
         <h1>구독 설정 변경</h1>
@@ -140,8 +142,8 @@ function retry() {
         >
       </section>
       <section class="setting-card">
-        <h2>반복 배송 요일</h2>
-        <div class="weekday-picker" role="group" aria-label="반복 배송 요일">
+        <h2>배송 요일</h2>
+        <div class="weekday-picker" role="group" aria-label="배송 요일">
           <button
             v-for="weekday in DELIVERY_WEEKDAYS"
             :key="weekday"
@@ -178,35 +180,43 @@ function retry() {
           class="condition-card"
         >
           <h3>{{ DELIVERY_WEEKDAY_LABELS[condition.weekday] }}</h3>
-          <label
-            >배송지<select
-              :value="condition.addressId"
-              @change="
-                changeStore.updateDeliveryCondition(condition.weekday, {
-                  addressId: $event.target.value,
-                })
-              "
-            >
-              <option
-                v-for="address in addresses"
-                :key="address.addressId"
-                :value="address.addressId"
+          <div class="condition-address">
+            <label
+              >배송지<select
+                :value="condition.addressId"
+                @change="
+                  changeStore.updateDeliveryCondition(condition.weekday, {
+                    addressId: $event.target.value,
+                  })
+                "
               >
-                {{ address.name }}
-              </option>
-            </select></label
-          >
-          <p class="address-preview">
-            {{
-              formatSubscriptionAddress(
-                addresses.find((address) => address.addressId === condition.addressId),
-              )
-            }}
-          </p>
-          <label
-            >식사 수량<span class="quantity-control"
-              ><button
+                <option
+                  v-for="address in addresses"
+                  :key="address.addressId"
+                  :value="address.addressId"
+                >
+                  {{ address.name }}
+                </option>
+              </select></label
+            >
+            <p class="address-preview">
+              {{
+                formatSubscriptionAddress(
+                  addresses.find((address) => address.addressId === condition.addressId),
+                )
+              }}
+            </p>
+          </div>
+          <div class="condition-field">
+            <span :id="`quantity-label-${condition.weekday}`">식사 수량</span>
+            <div
+              class="quantity-control"
+              role="group"
+              :aria-labelledby="`quantity-label-${condition.weekday}`"
+            >
+              <button
                 type="button"
+                :aria-label="`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량 줄이기`"
                 :disabled="condition.mealQuantity <= 1"
                 @click="changeQuantity(condition.weekday, -1)"
               >
@@ -214,11 +224,15 @@ function retry() {
               ><output>{{ condition.mealQuantity }}식</output
               ><button
                 type="button"
+                :aria-label="`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량 늘리기`"
                 :disabled="condition.mealQuantity >= 6"
                 @click="changeQuantity(condition.weekday, 1)"
               >
-                <Plus :size="16" /></button></span></label
-          ><label
+                <Plus :size="16" />
+              </button>
+            </div>
+          </div>
+          <label
             >배송 시간대<select
               :value="condition.deliveryTimeSlot"
               @change="
@@ -268,7 +282,7 @@ function retry() {
   margin: 0;
 }
 .setting-card label,
-.condition-card label {
+.condition-field {
   display: grid;
   gap: 8px;
   color: var(--color-text-muted);
@@ -277,6 +291,8 @@ function retry() {
 }
 .setting-card select,
 .condition-card select {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
@@ -303,33 +319,60 @@ function retry() {
 }
 .condition-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px 20px;
-  padding: 20px 0;
-  border-top: 1px solid var(--color-border);
+  grid-template-columns: minmax(0, 1fr) 160px minmax(180px, 0.65fr);
+  align-items: start;
+  gap: 18px 24px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
 }
-.condition-card h3,
-.address-preview {
+.condition-card h3 {
   grid-column: 1 / -1;
-}
-.address-preview {
-  margin: -8px 0 0;
-  color: var(--color-text-muted);
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-pressed);
   font-size: var(--font-caption);
 }
+.condition-address,
+.condition-field,
+.condition-card label {
+  min-width: 0;
+}
+.address-preview {
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-caption);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
 .quantity-control {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-background);
+  overflow: hidden;
 }
 .quantity-control button {
   display: grid;
-  width: 32px;
-  height: 32px;
+  flex: 0 0 44px;
+  height: 44px;
   place-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+}
+.quantity-control button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.quantity-control button:focus-visible {
+  outline: 2px solid var(--color-primary-pressed);
+  outline-offset: -3px;
 }
 .quantity-control output {
   min-width: 32px;
@@ -342,6 +385,14 @@ function retry() {
   border-radius: 12px;
   background: #fff0ed;
   color: #9e3825;
+}
+@media (max-width: 900px) {
+  .condition-card {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .condition-address {
+    grid-column: 1 / -1;
+  }
 }
 @media (max-width: 540px) {
   .weekday-picker {
