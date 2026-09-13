@@ -1,12 +1,15 @@
 <script setup>
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { PackageCheck } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { deliveryMethodLabel } from '../../delivery/deliveryMethodLabel.js'
+import { isOrderMonth } from '../api/orderApi.js'
 import { deliveryTimeSlotLabel } from '../currentSubscriptionDisplay.js'
 import { useOrderStore } from '../stores/useOrderStore.js'
 
 const router = useRouter()
+const route = useRoute()
 const orderStore = useOrderStore()
 const order = computed(() => orderStore.detail)
 const orderStatuses = {
@@ -39,7 +42,12 @@ function formatAmount(amount) {
 
 function backToOrders() {
   orderStore.clearSelectedOrder()
-  router.push({ name: 'wf-022' })
+  const page = Number(route.query.page)
+  const query =
+    isOrderMonth(route.query.month) && Number.isSafeInteger(page) && page > 0
+      ? { month: route.query.month, page: String(page) }
+      : {}
+  router.push({ name: 'wf-022', query })
 }
 </script>
 
@@ -119,13 +127,7 @@ function backToOrders() {
           </div>
           <div>
             <dt>배송 방식</dt>
-            <dd>
-              {{
-                order.deliveryMethodCode === 'DOORSTEP'
-                  ? '문 앞 비대면 배송'
-                  : order.deliveryMethodCode
-              }}
-            </dd>
+            <dd>{{ deliveryMethodLabel(order.deliveryMethodCode) }}</dd>
           </div>
           <div v-if="order.otherDeliveryRequest">
             <dt>배송 요청</dt>
