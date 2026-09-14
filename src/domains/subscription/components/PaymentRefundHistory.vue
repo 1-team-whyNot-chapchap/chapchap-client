@@ -97,7 +97,7 @@ watch(
   () => [props.kind, props.detail, routeId.value],
   ([, detail, id]) => {
     if (detail && typeof id === 'string') config.value.loadDetail(id)
-    else if (!detail) config.value.loadList()
+    else if (!detail) config.value.loadList(true)
   },
   { immediate: true },
 )
