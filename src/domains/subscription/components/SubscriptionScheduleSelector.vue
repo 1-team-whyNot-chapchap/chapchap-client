@@ -45,8 +45,7 @@ const holidayNames = computed(
 )
 const scheduleMessage = computed(() => {
   if (holidayStatus.value !== 'success') return ''
-  if (schedule.value.status === 'unselected')
-    return '배송 요일을 선택하면 예상 이용 기간과 배송 예정일을 표시합니다.'
+  if (schedule.value.status === 'unselected') return ''
   if (schedule.value.status !== 'ready')
     return '공휴일 정보 제공 범위 안에서 예상 28일 일정을 확인할 수 없습니다.'
   return ''
@@ -258,10 +257,6 @@ function formatDate(date) {
           예상 이용 기간 · {{ schedule.periodStartDate }} ~ {{ schedule.periodEndDate }} · 28일
         </p>
         <p v-else-if="scheduleMessage" role="status">{{ scheduleMessage }}</p>
-        <p>
-          현재 한국 시간 기준 예상 일정이며, 신청 시각에 따라 달라질 수 있습니다. 결제 단계에서
-          일정을 다시 확인해 주세요.
-        </p>
         <p v-if="holidayStatus === 'loading'" role="status">공휴일 정보를 불러오는 중입니다.</p>
         <div v-else-if="holidayStatus === 'error'" role="alert">
           <p>공휴일 정보를 불러오지 못해 날짜를 선택할 수 없습니다.</p>
