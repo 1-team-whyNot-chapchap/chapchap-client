@@ -5,13 +5,12 @@ RUN npm ci
 COPY index.html vite.config.js ./
 COPY src ./src
 COPY public ./public
-ARG VITE_LOCAL_GATEWAY_PROXY_TARGET
 ARG VITE_KAKAO_MAP_APP_KEY
 ARG VITE_PRIMEUI_LICENSE
 ARG VITE_PORTONE_STORE_ID
 ARG VITE_PORTONE_IDENTITY_CHANNEL_KEY
 ARG VITE_PORTONE_BILLING_CHANNEL_KEY
-RUN test -n "$VITE_GATEWAY_BASE_URL" && npm run build
+RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine
 COPY --from=build /app/dist /usr/share/nginx/html

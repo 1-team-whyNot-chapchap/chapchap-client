@@ -3,7 +3,6 @@ import { authSession } from '../../common/api/http.js'
 
 const RETRY_DELAYS = [1000, 2000, 5000, 10000, 15000]
 const INACTIVITY_MS = 45_000
-const gatewayBaseUrl = (import.meta.env?.VITE_GATEWAY_BASE_URL || '').replace(/\/$/, '')
 
 function createParser(onEvent) {
   let buffer = ''
@@ -83,9 +82,12 @@ export function useRiderLocationStream() {
       let token = authSession.getAccessToken()
       if (!token) token = await authSession.refreshAccessToken()
       const response = await fetch(
-        `${gatewayBaseUrl}/api/delivery/customer/deliveries/${encodeURIComponent(deliveryId)}/rider-location/stream`,
+        `/api/delivery/customer/deliveries/${encodeURIComponent(deliveryId)}/rider-location/stream`,
         {
-          headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
+          headers: {
+            Accept: 'text/event-stream',
+            Authorization: `Bearer ${token}`,
+          },
           credentials: 'include',
           signal: controller.signal,
         },

@@ -35,7 +35,6 @@ jobs:
       - name: Build and push image
         shell: bash
         env:
-          VITE_LOCAL_GATEWAY_PROXY_TARGET: ${{ secrets.VITE_LOCAL_GATEWAY_PROXY_TARGET }}
           VITE_PRIMEUI_LICENSE: ${{ secrets.VITE_PRIMEUI_LICENSE }}
           VITE_PORTONE_STORE_ID: ${{ secrets.VITE_PORTONE_STORE_ID }}
           VITE_PORTONE_IDENTITY_CHANNEL_KEY: ${{ secrets.VITE_PORTONE_IDENTITY_CHANNEL_KEY }}
@@ -45,7 +44,6 @@ jobs:
           set -euo pipefail
 
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}"
-          : "${VITE_LOCAL_GATEWAY_PROXY_TARGET:?Missing Actions secret VITE_LOCAL_GATEWAY_PROXY_TARGET}"
           : "${VITE_PRIMEUI_LICENSE:?Missing Actions secret VITE_PRIMEUI_LICENSE}"
           : "${VITE_PORTONE_STORE_ID:?Missing Actions secret VITE_PORTONE_STORE_ID}"
           : "${VITE_PORTONE_IDENTITY_CHANNEL_KEY:?Missing Actions secret VITE_PORTONE_IDENTITY_CHANNEL_KEY}"
@@ -53,7 +51,6 @@ jobs:
           : "${VITE_KAKAO_MAP_APP_KEY:?Missing Actions secret VITE_KAKAO_MAP_APP_KEY}"
 
           docker build \
-            --build-arg VITE_LOCAL_GATEWAY_PROXY_TARGET="$VITE_LOCAL_GATEWAY_PROXY_TARGET" \
             --build-arg VITE_PRIMEUI_LICENSE="$VITE_PRIMEUI_LICENSE" \
             --build-arg VITE_PORTONE_STORE_ID="$VITE_PORTONE_STORE_ID" \
             --build-arg VITE_PORTONE_IDENTITY_CHANNEL_KEY="$VITE_PORTONE_IDENTITY_CHANNEL_KEY" \
