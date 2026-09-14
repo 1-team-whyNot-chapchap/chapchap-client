@@ -89,6 +89,8 @@ const SubscriptionListPage = () => import('../domains/subscription/pages/Subscri
 const SubscriptionPage = () => import('../domains/subscription/pages/SubscriptionPage.vue')
 const SubscriptionRoundDetailPage = () =>
   import('../domains/subscription/pages/SubscriptionRoundDetailPage.vue')
+const SubscriptionRoundDateDetailPage = () =>
+  import('../domains/subscription/pages/SubscriptionRoundDateDetailPage.vue')
 const SubscriptionRoundsPage = () =>
   import('../domains/subscription/pages/SubscriptionRoundsPage.vue')
 const LegalDocumentPage = () => import('../domains/customer/pages/LegalDocumentPage.vue')
@@ -177,6 +179,11 @@ const router = createRouter({
       path: '/subscription/rounds/detail',
       name: 'wf-023',
       component: SubscriptionRoundDetailPage,
+    },
+    {
+      path: '/subscription/rounds/date-detail',
+      name: 'subscription-round-date-detail',
+      component: SubscriptionRoundDateDetailPage,
     },
     {
       path: '/subscription/cancel',
