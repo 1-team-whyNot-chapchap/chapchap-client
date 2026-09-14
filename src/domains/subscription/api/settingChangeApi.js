@@ -39,6 +39,34 @@ function requireResult(data, status) {
 
 export function createSettingChangeApi(client) {
   return {
+    async baseline() {
+      try {
+        const response = await client.get(`${ROOT}/baseline`)
+        const data = unwrapSubscriptionResponse(response, '설정 변경 기준을 확인할 수 없습니다.')
+        if (
+          !data?.subscriptionId ||
+          !data?.plan?.planId ||
+          typeof data.effectiveStartDate !== 'string' ||
+          !Array.isArray(data.deliveryConditions) ||
+          !data.deliveryConditions.length ||
+          data.deliveryConditions.some(
+            (condition) =>
+              !condition.address?.addressId ||
+              !condition.weekday ||
+              !condition.deliveryTimeSlot ||
+              !Number.isInteger(condition.mealQuantity),
+          )
+        ) {
+          throw new SubscriptionApiError('설정 변경 기준을 확인할 수 없습니다.', {
+            status: response.status,
+          })
+        }
+        return data
+      } catch (error) {
+        throw toSubscriptionApiError(error, '설정 변경 기준을 불러오지 못했습니다.')
+      }
+    },
+
     async preview(request) {
       try {
         const response = await client.post(`${ROOT}/preview`, request, writeOptions)

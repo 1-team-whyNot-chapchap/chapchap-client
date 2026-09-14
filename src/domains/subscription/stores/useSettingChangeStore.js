@@ -5,6 +5,11 @@ import { settingChangeApi } from '../api/settingChangeApi.js'
 export function createSettingChangeStore(api = settingChangeApi, storeId = 'setting-change') {
   return defineStore(storeId, {
     state: () => ({
+      baseline: null,
+      baselineStatus: 'idle',
+      baselineRequest: null,
+      calculationRequest: null,
+      baselineNeedsRefresh: false,
       planId: '',
       deliveryConditions: [],
       preview: null,
@@ -15,9 +20,34 @@ export function createSettingChangeStore(api = settingChangeApi, storeId = 'sett
     }),
 
     actions: {
+      async fetchBaseline() {
+        if (this.baselineStatus === 'loading') return null
+        const token = Symbol('baseline')
+        this.baselineRequest = token
+        this.baselineStatus = 'loading'
+        this.error = null
+        try {
+          const baseline = await api.baseline()
+          if (this.baselineRequest !== token) return null
+          this.initialize(baseline)
+          this.baselineStatus = 'success'
+          return baseline
+        } catch (error) {
+          if (this.baselineRequest !== token) return null
+          this.baseline = null
+          this.preview = null
+          this.baselineStatus = 'error'
+          this.error = error
+          return null
+        }
+      },
+
       initialize(subscription) {
         if (!subscription?.plan?.planId || !Array.isArray(subscription.deliveryConditions))
           return false
+        this.baseline = JSON.parse(JSON.stringify(subscription))
+        this.baselineStatus = 'success'
+        this.baselineNeedsRefresh = false
         this.planId = subscription.plan.planId
         this.deliveryConditions = subscription.deliveryConditions.map((condition) => ({
           weekday: condition.weekday,
@@ -63,6 +93,7 @@ export function createSettingChangeStore(api = settingChangeApi, storeId = 'sett
       },
 
       clearCalculation() {
+        this.calculationRequest = null
         this.preview = null
         this.result = null
         this.previewStatus = 'idle'
@@ -71,14 +102,30 @@ export function createSettingChangeStore(api = settingChangeApi, storeId = 'sett
       },
 
       async requestPreview(request) {
-        if (this.previewStatus === 'loading') return null
+        if (
+          this.previewStatus === 'loading' ||
+          this.baselineStatus !== 'success' ||
+          this.baselineNeedsRefresh
+        )
+          return null
+        const token = Symbol('preview')
+        this.calculationRequest = token
         this.previewStatus = 'loading'
         this.error = null
         try {
-          this.preview = await api.preview(request)
+          const preview = await api.preview(request)
+          if (this.calculationRequest !== token) return null
+          if (preview.effectiveStartDate !== this.baseline.effectiveStartDate) {
+            this.baselineNeedsRefresh = true
+            throw new Error(
+              '변경 적용일이 달라졌습니다. 최신 기준을 다시 불러온 뒤 변경 내용을 확인해 주세요.',
+            )
+          }
+          this.preview = preview
           this.previewStatus = 'success'
           return this.preview
         } catch (error) {
+          if (this.calculationRequest !== token) return null
           this.preview = null
           this.previewStatus = 'error'
           this.error = error
@@ -87,14 +134,20 @@ export function createSettingChangeStore(api = settingChangeApi, storeId = 'sett
       },
 
       async submit(request) {
-        if (this.submitStatus === 'loading') return null
+        if (this.submitStatus === 'loading' || !this.preview || this.baselineNeedsRefresh)
+          return null
+        const token = Symbol('submit')
+        this.calculationRequest = token
         this.submitStatus = 'loading'
         this.error = null
         try {
-          this.result = await api.change(request)
+          const result = await api.change(request)
+          if (this.calculationRequest !== token) return null
+          this.result = result
           this.submitStatus = 'success'
           return this.result
         } catch (error) {
+          if (this.calculationRequest !== token) return null
           this.result = null
           this.submitStatus = 'error'
           this.error = error
