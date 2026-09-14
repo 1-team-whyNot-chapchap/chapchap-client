@@ -4,6 +4,9 @@ export const BILLING_CALLBACK_PATH = '/subscription/payment-methods/callback'
 export const BILLING_CONTEXT_KEY = 'subscription.mobile-billing.v1'
 export const BILLING_CONTEXT_TTL = 30 * 60 * 1000
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+export const validTermsVersion = (value) =>
+  (Number.isSafeInteger(value) && value > 0) ||
+  (typeof value === 'string' && /^[1-9]\d{0,8}$/.test(value))
 export const billingUserId = (user) =>
   user?.role === 'CUSTOMER' && typeof user.userId === 'string' && /^\d+$/.test(user.userId)
     ? user.userId
@@ -28,7 +31,7 @@ function cleanDraft(draft) {
   const request = createFirstSubscriptionRequest(draft.planId, draft.deliveryConditions)
   const acceptedTerms = Array.isArray(draft.acceptedTerms)
     ? draft.acceptedTerms
-        .filter((term) => typeof term?.termsType === 'string' && typeof term.version === 'string')
+        .filter((term) => typeof term?.termsType === 'string' && validTermsVersion(term.version))
         .map(({ termsType, version }) => ({ termsType, version }))
     : []
   return { ...request, acceptedTerms }

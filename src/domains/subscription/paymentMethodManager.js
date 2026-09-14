@@ -1,3 +1,6 @@
+import { watch } from 'vue'
+import { billingUserId } from './mobileBillingContext.js'
+
 export function paymentMethodState() {
   return { cards: [], loading: false, busy: false, loaded: false, error: '', notice: '' }
 }
@@ -28,11 +31,31 @@ export function paymentMethodError(error, action) {
 }
 
 // State contains only display data; billing keys stay within the single registration call.
-export function createPaymentMethodManager({ api, issue, state, getOwner }) {
+export function createPaymentMethodManager({
+  api,
+  issue,
+  state,
+  getOwner,
+  onOwnerChange = () => {},
+}) {
   let generation = 0
+  let ownerGeneration = 0
   let disposed = false
-  const owner = getOwner()
-  const active = () => !disposed && Boolean(owner) && getOwner() === owner
+  const ownerId = () => billingUserId(getOwner())
+  const active = (version = ownerGeneration) =>
+    !disposed && Boolean(ownerId()) && version === ownerGeneration
+  // Observe the ID synchronously: A -> logout/B -> A must still invalidate A's old requests.
+  const stopOwnerWatch = watch(
+    ownerId,
+    () => {
+      ownerGeneration++
+      generation++
+      Object.assign(state, paymentMethodState())
+      onOwnerChange()
+      if (active()) void load()
+    },
+    { flush: 'sync' },
+  )
 
   async function refresh() {
     if (!active()) return false
@@ -63,6 +86,8 @@ export function createPaymentMethodManager({ api, issue, state, getOwner }) {
 
   async function change(action, operation) {
     if (state.busy || state.loading || !state.loaded || !active()) return false
+    const version = ownerGeneration
+    const stillActive = () => active(version)
     state.busy = true
     state.error = ''
     state.notice = ''
@@ -70,8 +95,8 @@ export function createPaymentMethodManager({ api, issue, state, getOwner }) {
     try {
       const result = await operation(() => {
         sent = true
-      }, active)
-      if (!active()) return false
+      }, stillActive)
+      if (!stillActive()) return false
       state.notice =
         action === '카드 등록'
           ? result.isCurrent
@@ -81,16 +106,17 @@ export function createPaymentMethodManager({ api, issue, state, getOwner }) {
             ? '카드 삭제가 완료되었습니다.'
             : '현재 결제수단 변경이 완료되었습니다.'
       await refresh()
-      return true
+      return stillActive()
     } catch (error) {
-      if (!active()) return false
+      if (!stillActive()) return false
       const message = sent ? paymentMethodError(error, action) : error.message
       // A timed-out write may have completed. Never retry it; read back instead.
       if (sent) await refresh()
+      if (!stillActive()) return false
       state.error = message
       return false
     } finally {
-      if (active()) state.busy = false
+      if (stillActive()) state.busy = false
     }
   }
 
@@ -98,7 +124,7 @@ export function createPaymentMethodManager({ api, issue, state, getOwner }) {
     load,
     register: () =>
       change('카드 등록', async (sent, stillActive) => {
-        let key = await issue()
+        let key = await issue(stillActive)
         try {
           if (!stillActive()) throw new Error('로그인 상태가 변경되었습니다. 다시 진행해 주세요.')
           sent()
@@ -119,9 +145,11 @@ export function createPaymentMethodManager({ api, issue, state, getOwner }) {
       }),
     async verifyCurrent() {
       if (!paymentMethodsReady(state) || !active()) return false
+      const version = ownerGeneration
       const previous = state.cards.find((card) => card.isDefault).id
       state.error = ''
       if (!(await refresh())) return false
+      if (!active(version)) return false
       if (
         !paymentMethodsReady(state) ||
         state.cards.find((card) => card.isDefault).id !== previous
@@ -133,13 +161,10 @@ export function createPaymentMethodManager({ api, issue, state, getOwner }) {
     },
     dispose() {
       disposed = true
+      stopOwnerWatch()
+      ownerGeneration++
       generation++
-      state.cards = []
-      state.loaded = false
-      state.loading = false
-      state.busy = false
-      state.error = ''
-      state.notice = ''
+      Object.assign(state, paymentMethodState())
     },
   }
 }

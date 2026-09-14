@@ -3,6 +3,7 @@ import { computed, watch, onBeforeUnmount } from 'vue'
 import { useAddressStore } from './domains/subscription/stores/useAddressStore.js'
 import { useCurrentSubscriptionStore } from './domains/subscription/stores/useCurrentSubscriptionStore.js'
 import { useFirstSubscriptionStore } from './domains/subscription/stores/useFirstSubscriptionStore.js'
+import { bindFirstSubscriptionDraft } from './domains/subscription/firstSubscriptionDraft.js'
 import { billingUserId } from './domains/subscription/mobileBillingContext.js'
 import { clearMobileBilling } from './domains/subscription/mobileBillingReturn.js'
 import { useOrderStore } from './domains/subscription/stores/useOrderStore.js'
@@ -26,6 +27,11 @@ const appStore = useAppStore()
 const addressStore = useAddressStore()
 const currentSubscriptionStore = useCurrentSubscriptionStore()
 const firstSubscriptionStore = useFirstSubscriptionStore()
+const stopFirstSubscriptionDraft = bindFirstSubscriptionDraft(
+  firstSubscriptionStore,
+  () => authSession.state.user,
+)
+onBeforeUnmount(stopFirstSubscriptionDraft)
 const orderStore = useOrderStore()
 const settingChangeStore = useSettingChangeStore()
 const cancellationStore = useSubscriptionCancellationStore()
@@ -35,7 +41,6 @@ watch(
   (userId, previous) => {
     if (previous && previous !== userId) {
       clearMobileBilling()
-      firstSubscriptionStore.$reset()
     }
   },
   { flush: 'sync' },
@@ -53,7 +58,6 @@ watch(
       return
     addressStore.invalidate()
     currentSubscriptionStore.$reset()
-    firstSubscriptionStore.$reset()
     orderStore.clearSelectedOrder()
     orderStore.$reset()
     settingChangeStore.$reset()

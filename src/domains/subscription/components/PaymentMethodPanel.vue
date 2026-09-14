@@ -26,14 +26,18 @@ const state = reactive(paymentMethodState())
 const confirmation = ref(null)
 const route = useRoute()
 const application = useFirstSubscriptionStore()
-async function issue() {
+async function issue(stillActive) {
   const startingUser = billingUserId(authSession.state.user)
   let started = null
   let context
   try {
     return await issueBillingKey({
       prepareRedirect: () => {
-        if (!startingUser || startingUser !== billingUserId(authSession.state.user))
+        if (
+          !stillActive() ||
+          !startingUser ||
+          startingUser !== billingUserId(authSession.state.user)
+        )
           throw new Error('로그인 상태가 변경되었습니다. 다시 진행해 주세요.')
         const source = route.path === '/subscribe/payment' ? 'subscription' : 'methods'
         if (
@@ -66,6 +70,9 @@ const manager = createPaymentMethodManager({
   issue,
   state,
   getOwner: () => authSession.state.user,
+  onOwnerChange: () => {
+    confirmation.value = null
+  },
 })
 const locked = computed(() => props.disabled || state.busy || state.loading)
 const canAct = computed(() => !locked.value && state.loaded && Boolean(authSession.state.user))
@@ -73,13 +80,6 @@ watch(
   () => paymentMethodsReady(state),
   (ready) => emit('ready', ready),
   { immediate: true, flush: 'sync' },
-)
-watch(
-  () => authSession.state.user,
-  () => {
-    confirmation.value = null
-    manager.dispose()
-  },
 )
 function confirm(action, card) {
   if (!canAct.value || (action === 'remove' && !props.allowDelete)) return
@@ -113,8 +113,7 @@ onMounted(async () => {
     state.error = '이전 카드 등록 상태를 확인하지 못했습니다. 목록을 확인해 주세요.'
   }
   const notice = takeBillingReturnNotice(billingUserId(authSession.state.user))
-  await manager.load()
-  if (notice) state.notice = notice
+  if ((await manager.load()) && notice) state.notice = notice
 })
 onBeforeUnmount(() => {
   window.removeEventListener('pageshow', handlePageShow)

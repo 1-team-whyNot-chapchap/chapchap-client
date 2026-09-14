@@ -355,9 +355,6 @@ async function submit() {
                 ][step - 1]
               }}
             </h1>
-            <p>
-              {{ plan.name }}의 1~31번 고정 메뉴는 안내용이며, 별도로 선택하거나 전송하지 않습니다.
-            </p>
           </header>
           <section v-if="step === 1" class="flow-panel">
             <SubscriptionScheduleSelector

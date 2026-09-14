@@ -7,6 +7,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createFirstSubscriptionStore } from './stores/useFirstSubscriptionStore.js'
 import { createAddressStore } from './stores/useAddressStore.js'
 import { billingUserId } from './mobileBillingContext.js'
+import { bindFirstSubscriptionDraft } from './firstSubscriptionDraft.js'
 
 // 실제 신청 컴포넌트와 저장소를 메모리에서 실행한다. HTTP·결제 호출은 하지 않는다.
 const sourceUrl = new URL('./pages/SubscriptionFlowPage.vue', import.meta.url)
@@ -273,6 +274,13 @@ test('실제 App의 기존 감시 코드: 로그아웃과 계정 교체는 신�
   const session = { state: reactive({ user }) }
   const noop = { invalidate() {}, $reset() {}, clearSelectedOrder() {} }
   const stops = []
+  stops.push(
+    bindFirstSubscriptionDraft(
+      store,
+      () => session.state.user,
+      () => ({ getItem: () => null, removeItem() {}, setItem() {} }),
+    ),
+  )
   let cleared = 0
   new Function(
     'watch',
@@ -318,8 +326,8 @@ test('실제 App의 기존 감시 코드: 로그아웃과 계정 교체는 신�
     store.begin(PLAN)
     store.setDeliveryWeekdays(['TUESDAY'])
     session.state.user = { ...user, email: 'b@example.test', phone: 'test-b' }
-    assert.equal(store.planId, '')
-    assert.deepEqual(store.deliveryConditions, [])
+    assert.equal(store.planId, PLAN)
+    assert.equal(store.deliveryConditions.length, 1)
     store.begin(PLAN)
     store.setDeliveryWeekdays(['MONDAY'])
     session.state.user = { ...session.state.user, userId: '2' }
