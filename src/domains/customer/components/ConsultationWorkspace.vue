@@ -67,9 +67,8 @@ function connectConversation() {
   historySync = sync
   const url = new URL(
     '/ws/customer/consultations',
-    window.location.origin,
+    import.meta.env?.VITE_GATEWAY_BASE_URL || window.location.origin,
   )
-
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   connection = createConsultationConnection({
     consultationId,
