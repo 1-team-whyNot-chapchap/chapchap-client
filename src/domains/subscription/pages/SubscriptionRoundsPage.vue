@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
+import { holidayApi } from '../api/holidayApi.js'
 import { isOrderMonth } from '../api/orderApi.js'
 import { useOrderStore } from '../stores/useOrderStore.js'
 
@@ -12,6 +13,9 @@ const route = useRoute()
 const orderStore = useOrderStore()
 const month = ref(dayjs().startOf('month'))
 const page = ref(1)
+const holidayStatus = ref('idle')
+const holidayNames = ref(new Map())
+let holidayRequest = null
 const kstMonthFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Seoul',
   year: 'numeric',
@@ -41,7 +45,13 @@ const calendarDays = computed(() => {
   const days = Array.from({ length: first.day() }, () => null)
   for (let day = 1; day <= first.daysInMonth(); day++) {
     const date = first.date(day).format('YYYY-MM-DD')
-    days.push({ day, date, orders: ordersByDate.value.get(date) || [] })
+    days.push({
+      day,
+      date,
+      orders: ordersByDate.value.get(date) || [],
+      holidayName: holidayNames.value.get(date),
+      isSunday: first.date(day).day() === 0,
+    })
   }
   while (days.length % 7) days.push(null)
   return days
@@ -75,6 +85,31 @@ function isCurrentQuery(valueMonth, valuePage) {
   return route.query.month === valueMonth && route.query.page === String(valuePage)
 }
 
+function loadHolidays() {
+  if (holidayStatus.value === 'success') return Promise.resolve(holidayNames.value)
+  if (holidayRequest) return holidayRequest
+
+  holidayStatus.value = 'loading'
+  holidayRequest = holidayApi
+    .getHolidays()
+    .then((calendar) => {
+      holidayNames.value = new Map(
+        calendar.holidays.map((holiday) => [holiday.holidayDate, holiday.holidayName]),
+      )
+      holidayStatus.value = 'success'
+      return holidayNames.value
+    })
+    .catch(() => {
+      holidayNames.value = new Map()
+      holidayStatus.value = 'error'
+      return holidayNames.value
+    })
+    .finally(() => {
+      holidayRequest = null
+    })
+  return holidayRequest
+}
+
 async function loadSchedule() {
   const targetMonth = queryMonth(route.query.month)
   const targetPage = queryPage(route.query.page)
@@ -88,6 +123,7 @@ async function loadSchedule() {
   const [, history] = await Promise.all([
     orderStore.fetchCalendarOrders(targetMonth),
     orderStore.fetchOrderHistory(targetMonth, targetPage),
+    loadHolidays(),
   ])
   if (!isCurrentQuery(targetMonth, targetPage)) return
   if (
@@ -163,10 +199,17 @@ function openOrder(orderId) {
             v-for="(cell, index) in calendarDays"
             :key="cell?.date || `empty-${index}`"
             class="order-calendar__day"
-            :class="{ 'is-empty': !cell }"
+            :class="{
+              'is-empty': !cell,
+              'is-holiday': cell?.holidayName,
+              'is-sunday': cell?.isSunday,
+            }"
           >
             <template v-if="cell">
               <strong>{{ cell.day }}</strong>
+              <small v-if="cell.holidayName" class="order-calendar__holiday">
+                {{ cell.holidayName }}
+              </small>
               <button
                 v-for="order in cell.orders"
                 :key="order.orderId"
@@ -317,6 +360,20 @@ function openOrder(orderId) {
 }
 .order-calendar__day > strong {
   font-size: var(--font-caption);
+}
+.order-calendar__day.is-holiday,
+.order-calendar__day.is-sunday {
+  border-color: transparent;
+  background: var(--color-disabled);
+  color: var(--color-text-muted);
+}
+.order-calendar__holiday {
+  overflow: hidden;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .order-calendar__item {
   overflow: hidden;
