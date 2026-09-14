@@ -32,6 +32,27 @@ const result = {
 }
 const success = (data) => ({ status: 200, data: { code: '00', message: 'SUCCESS', data } })
 
+test('기준 조회는 사용자 식별자를 보내지 않는 GET을 사용한다', async () => {
+  const baseline = {
+    subscriptionId: 'subscription',
+    effectiveStartDate: '2026-09-16',
+    plan: { planId: request.planId },
+    deliveryConditions: request.deliveryConditions.map((condition) => ({
+      ...condition,
+      address: { addressId: condition.addressId },
+    })),
+  }
+  const api = createSettingChangeApi({
+    get: async (...args) => {
+      assert.deepEqual(args, ['/api/subscription/subscriptions/setting-changes/baseline'])
+      return success(baseline)
+    },
+  })
+  assert.deepEqual(await api.baseline(), baseline)
+  const invalid = createSettingChangeApi({ get: async () => success(null) })
+  await assert.rejects(invalid.baseline(), /설정 변경 기준/)
+})
+
 test('설정 변경 미리보기와 최종 실행은 Gateway 경로 및 동일 요청 본문을 사용한다', async () => {
   const calls = []
   const api = createSettingChangeApi({

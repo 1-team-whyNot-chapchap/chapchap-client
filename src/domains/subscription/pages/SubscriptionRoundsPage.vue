@@ -156,6 +156,13 @@ function openOrder(orderId) {
   if (!orderStore.selectOrder(orderId)) return
   router.push({ name: 'wf-023', query: queryFor(month.value.format('YYYY-MM'), page.value) })
 }
+
+function openDateOrders(date) {
+  router.push({
+    name: 'subscription-round-date-detail',
+    query: { ...queryFor(month.value.format('YYYY-MM'), page.value), date },
+  })
+}
 </script>
 
 <template>
@@ -206,20 +213,27 @@ function openOrder(orderId) {
             }"
           >
             <template v-if="cell">
-              <strong>{{ cell.day }}</strong>
-              <small v-if="cell.holidayName" class="order-calendar__holiday">
-                {{ cell.holidayName }}
-              </small>
               <button
-                v-for="order in cell.orders"
-                :key="order.orderId"
-                class="order-calendar__item"
+                v-if="cell.orders.length"
+                class="order-calendar__date-button"
                 type="button"
-                :aria-label="`${order.deliveryDate} 주문 상세 보기`"
-                @click="openOrder(order.orderId)"
+                :aria-label="`${cell.date} 주문 상세 보기`"
+                @click="openDateOrders(cell.date)"
               >
-                {{ orderStatuses[order.status] || '상태 확인' }}
+                <strong>{{ cell.day }}</strong>
+                <small v-if="cell.holidayName" class="order-calendar__holiday">
+                  {{ cell.holidayName }}
+                </small>
+                <span class="order-calendar__marker"
+                  ><span aria-hidden="true">●</span> 주문 있음</span
+                >
               </button>
+              <template v-else>
+                <strong>{{ cell.day }}</strong>
+                <small v-if="cell.holidayName" class="order-calendar__holiday">
+                  {{ cell.holidayName }}
+                </small>
+              </template>
             </template>
           </div>
         </div>
@@ -227,7 +241,7 @@ function openOrder(orderId) {
           {{
             orderStore.calendarStatus === 'loading'
               ? '주문 달력을 불러오고 있어요.'
-              : '표시가 있는 날짜만 서버가 생성한 실제 주문입니다.'
+              : '주문 있음 표시가 있는 날짜를 선택하면 주문 상세를 확인할 수 있어요.'
           }}
         </p>
       </template>
@@ -375,16 +389,30 @@ function openOrder(orderId) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.order-calendar__item {
-  overflow: hidden;
-  padding: 4px;
+.order-calendar__date-button {
+  width: 100%;
+  min-height: 66px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 0;
   border: 0;
-  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.order-calendar__date-button > strong {
+  font-size: var(--font-caption);
+}
+.order-calendar__marker {
+  width: fit-content;
+  padding: 4px 6px;
+  border-radius: 999px;
   background: var(--color-primary-soft);
   color: var(--color-primary-pressed);
   font-size: 11px;
   font-weight: 800;
-  text-overflow: ellipsis;
+  line-height: 1;
   white-space: nowrap;
 }
 .order-calendar__notice {
@@ -458,7 +486,7 @@ function openOrder(orderId) {
     min-height: 64px;
     padding: 4px;
   }
-  .order-calendar__item {
+  .order-calendar__marker {
     font-size: 9px;
   }
   .order-card {

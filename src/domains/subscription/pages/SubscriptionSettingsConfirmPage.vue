@@ -1,6 +1,7 @@
 <script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, watch } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { authSession } from '../../../common/api/http.js'
 import { CheckCircle2, Info } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import { createSettingChangeComparison } from '../settingChangeComparison.js'
@@ -19,10 +20,18 @@ const router = useRouter(),
 const preview = computed(() => changeStore.preview),
   result = computed(() => changeStore.result)
 const addressStore = useAddressStore()
+watch(
+  () => authSession.state.user?.userId,
+  () => changeStore.$reset(),
+  { flush: 'sync' },
+)
+onBeforeRouteLeave((to) => {
+  if (to.name !== 'wf-024') changeStore.$reset()
+})
 const comparison = computed(() =>
-  currentStore.status === 'success' && addressStore.listStatus === 'success'
+  changeStore.baselineStatus === 'success' && addressStore.listStatus === 'success'
     ? createSettingChangeComparison(
-        currentStore.subscription,
+        changeStore.baseline,
         changeStore,
         planStore.plans,
         addressStore.addresses,
