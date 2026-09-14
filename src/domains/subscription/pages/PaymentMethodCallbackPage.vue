@@ -39,7 +39,9 @@ onMounted(async () => {
     }
     if (outcome.record.draft) application.restoreMobileDraft(outcome.record.draft)
     setBillingReturnNotice(owner, outcome.message)
-    await router.replace(billingReturnTarget(outcome.record))
+    const target = billingReturnTarget(outcome.record)
+    if (outcome.record.draft && application.planId) target.query.planId = application.planId
+    await router.replace(target)
   } catch {
     if (active)
       message.value =

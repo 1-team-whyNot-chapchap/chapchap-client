@@ -20,6 +20,7 @@ export function createFirstSubscriptionStore(
       agreementRequest: null,
       termsConfirmed: false,
       mobileAcceptedTerms: null,
+      pendingDraftTerms: null,
       preview: null,
       previewRequest: null,
       result: null,
@@ -32,7 +33,15 @@ export function createFirstSubscriptionStore(
       activeStep: null,
     }),
     actions: {
+      restoreSavedDraft(draft) {
+        this.$reset()
+        this.planId = draft.planId
+        this.deliveryConditions = draft.deliveryConditions
+        this.pendingDraftTerms = { terms: draft.terms, confirmed: draft.confirmed }
+      },
       restoreMobileDraft(draft) {
+        // A live or regularly restored draft is newer than a pending provider round trip.
+        if (this.planId) return
         const request = createFirstSubscriptionRequest(draft.planId, draft.deliveryConditions)
         this.$reset()
         this.planId = request.planId
@@ -116,6 +125,23 @@ export function createFirstSubscriptionStore(
             this.requiredTerms.map((term) => [term.termsType, false]),
           )
           this.termsStatus = 'success'
+          if (this.pendingDraftTerms) {
+            const saved = this.pendingDraftTerms
+            this.agreedTerms = Object.fromEntries(
+              terms.map((term) => [
+                term.termsType,
+                saved.terms.some(
+                  (old) =>
+                    old.termsType === term.termsType && old.version === term.version && old.checked,
+                ),
+              ]),
+            )
+            this.termsConfirmed =
+              saved.confirmed &&
+              saved.terms.length === terms.length &&
+              terms.every((term) => this.agreedTerms[term.termsType])
+            this.pendingDraftTerms = null
+          }
           if (this.mobileAcceptedTerms) {
             const accepted = this.mobileAcceptedTerms
             this.mobileAcceptedTerms = null
