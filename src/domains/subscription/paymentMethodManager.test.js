@@ -1,6 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createPinia, setActivePinia } from 'pinia'
+import { reactive } from 'vue'
+import axios from 'axios'
+import { createAuthSession } from '../auth/authSession.js'
+import { createAccessGuard } from '../auth/routeAccess.js'
 import { createFirstSubscriptionStore } from './stores/useFirstSubscriptionStore.js'
 import {
   createPaymentMethodManager,
@@ -11,7 +15,7 @@ const a = { id: 'a', isDefault: true }
 const b = { id: 'b', isDefault: false }
 function setup(overrides = {}) {
   let cards = []
-  let owner = { id: 'test-owner' }
+  const session = reactive({ user: { userId: '2', role: 'CUSTOMER' } })
   const calls = []
   const state = paymentMethodState()
   const api = {
@@ -35,7 +39,7 @@ function setup(overrides = {}) {
   const manager = createPaymentMethodManager({
     api,
     state,
-    getOwner: () => owner,
+    getOwner: () => session.user,
     issue: async () => 'test-key',
     ...overrides.manager,
   })
@@ -44,11 +48,14 @@ function setup(overrides = {}) {
     manager,
     calls,
     api,
+    setOwner: (user) => {
+      session.user = user
+    },
     setCards: (value) => {
       cards = value
     },
     logout: () => {
-      owner = null
+      session.user = null
     },
   }
 }
@@ -241,4 +248,235 @@ test('before payment a changed or missing current card blocks submission until c
   assert.match(t.state.error, /현재 결제수단이 변경/)
   await t.manager.load()
   assert.equal(await t.manager.verifyCurrent(), true)
+})
+
+const customer = (userId = '2') => ({ userId, role: 'CUSTOMER' })
+function deferred() {
+  let resolve, reject
+  const promise = new Promise((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  return { promise, resolve, reject }
+}
+const settle = () => new Promise((resolve) => setImmediate(resolve))
+
+test('real auth session and route guard can refetch the same user without clearing cards', async () => {
+  let profileReads = 0
+  const http = axios.create({
+    adapter: async (config) => {
+      profileReads++
+      return {
+        config,
+        status: 200,
+        headers: {},
+        data: { code: '00', data: { ...customer(), status: 'ACTIVE' } },
+      }
+    },
+  })
+  const auth = createAuthSession(http, {
+    post: async () => ({ data: { code: '00', data: { accessToken: 'test-only-token' } } }),
+  })
+  const guard = createAccessGuard(auth)
+  assert.equal(await guard({ path: '/mypage/payment-methods' }), true)
+  const original = auth.state.user
+  const t = setup({ manager: { getOwner: () => auth.state.user } })
+  t.setCards([a])
+  await t.manager.load()
+  assert.equal(await guard({ path: '/mypage/payment-methods' }), true)
+  assert.equal(profileReads, 2)
+  assert.notEqual(auth.state.user, original)
+  assert.equal(auth.state.user.userId, original.userId)
+  assert.deepEqual(t.state.cards, [a])
+  assert.equal(paymentMethodsReady(t.state), true)
+  t.manager.dispose()
+})
+
+test('same customer object refresh preserves cards, confirmation and readiness', async () => {
+  let ownerChanges = 0
+  const t = setup({ manager: { onOwnerChange: () => ownerChanges++ } })
+  t.setCards([a])
+  await t.manager.load()
+  t.setOwner({ ...customer(), subscriptionStatus: 'ACTIVE' })
+  assert.deepEqual(t.state.cards, [a])
+  assert.equal(paymentMethodsReady(t.state), true)
+  assert.equal(ownerChanges, 0)
+  assert.equal(await t.manager.verifyCurrent(), true)
+})
+
+test('same customer refresh during list retrieval accepts the response', async () => {
+  const read = deferred()
+  const t = setup({ api: { paymentMethods: () => read.promise } })
+  const pending = t.manager.load()
+  t.setOwner(customer())
+  read.resolve([a])
+  assert.equal(await pending, true)
+  assert.equal(paymentMethodsReady(t.state), true)
+})
+
+test('same customer refresh during card issue and registration accepts success once', async () => {
+  const issue = deferred()
+  const registration = deferred()
+  let writes = 0
+  const t = setup({
+    manager: { issue: () => issue.promise },
+    api: {
+      registerPaymentMethod: () => {
+        writes++
+        return registration.promise
+      },
+    },
+  })
+  await t.manager.load()
+  const pending = t.manager.register()
+  t.setOwner(customer())
+  issue.resolve('test-key')
+  await settle()
+  t.setOwner(customer())
+  t.setCards([a])
+  registration.resolve({ isCurrent: true })
+  assert.equal(await pending, true)
+  assert.equal(writes, 1)
+  assert.equal(paymentMethodsReady(t.state), true)
+})
+
+test('same customer refresh during card selection retains its successful result', async () => {
+  const selection = deferred()
+  const t = setup({ api: { defaultPaymentMethod: () => selection.promise } })
+  t.setCards([a, b])
+  await t.manager.load()
+  const pending = t.manager.select(b)
+  t.setOwner(customer())
+  t.setCards([
+    { ...a, isDefault: false },
+    { ...b, isDefault: true },
+  ])
+  selection.resolve()
+  assert.equal(await pending, true)
+  assert.equal(paymentMethodsReady(t.state), true)
+  assert.equal(t.state.cards.find((c) => c.isDefault).id, 'b')
+})
+
+test('logout clears all display state synchronously and does not query without an owner', async () => {
+  let reads = 0,
+    cleared = 0
+  const t = setup({
+    api: {
+      paymentMethods: async () => {
+        reads++
+        return [a]
+      },
+    },
+    manager: { onOwnerChange: () => cleared++ },
+  })
+  await t.manager.load()
+  t.state.notice = 'old notice'
+  t.logout()
+  assert.deepEqual(t.state, paymentMethodState())
+  assert.equal(cleared, 1)
+  assert.equal(await t.manager.load(), false)
+  assert.equal(reads, 1)
+})
+
+test('account switch loads fresh cards and ignores the old pending list response', async () => {
+  const old = deferred(),
+    next = deferred()
+  let reads = 0
+  const t = setup({ api: { paymentMethods: () => (++reads === 1 ? old.promise : next.promise) } })
+  const pending = t.manager.load()
+  t.setOwner(customer('3'))
+  next.resolve([b])
+  await settle()
+  old.resolve([a])
+  assert.equal(await pending, false)
+  assert.deepEqual(t.state.cards, [b])
+  assert.equal(t.state.loading, false)
+  assert.equal(t.state.loaded, true)
+})
+
+for (const middle of [null, customer('3')]) {
+  test(`leaving and returning to customer 2 invalidates pending card issue via ${middle ? 'another account' : 'logout'}`, async () => {
+    const issue = deferred()
+    let allowed
+    const t = setup({
+      manager: {
+        issue: (stillActive) => {
+          allowed = stillActive
+          return issue.promise
+        },
+      },
+    })
+    await t.manager.load()
+    const pending = t.manager.register()
+    t.setOwner(middle)
+    t.setOwner(customer())
+    await settle()
+    assert.equal(allowed(), false)
+    issue.resolve('test-key')
+    assert.equal(await pending, false)
+    assert.deepEqual(t.calls, [])
+    assert.equal(t.state.notice, '')
+  })
+}
+
+test('old failed write cannot overwrite a new account state after its recovery read', async () => {
+  const recovery = deferred(),
+    newRead = deferred()
+  let reads = 0
+  const t = setup({
+    api: {
+      paymentMethods: () => {
+        reads++
+        return reads === 1 ? Promise.resolve([a]) : reads === 2 ? recovery.promise : newRead.promise
+      },
+      defaultPaymentMethod: async () => {
+        throw new Error('old failure')
+      },
+    },
+  })
+  await t.manager.load()
+  const pending = t.manager.select(a)
+  await settle()
+  t.setOwner(customer('3'))
+  recovery.resolve([a])
+  assert.equal(await pending, false)
+  assert.equal(t.state.loading, true)
+  assert.equal(t.state.error, '')
+  newRead.resolve([b])
+  await settle()
+  assert.deepEqual(t.state.cards, [b])
+})
+
+test('owner change during current-card verification never authorizes payment', async () => {
+  const read = deferred()
+  const t = setup()
+  t.setCards([a])
+  await t.manager.load()
+  t.api.paymentMethods = () => read.promise
+  const verification = t.manager.verifyCurrent()
+  t.logout()
+  t.setOwner(customer())
+  read.resolve([a])
+  assert.equal(await verification, false)
+})
+
+test('invalid owner or customer role loss clears cards; disposed manager never reloads', async () => {
+  let reads = 0
+  const t = setup({
+    api: {
+      paymentMethods: async () => {
+        reads++
+        return [a]
+      },
+    },
+  })
+  await t.manager.load()
+  t.setOwner({ userId: '2', role: 'ADMIN' })
+  assert.deepEqual(t.state, paymentMethodState())
+  assert.equal(await t.manager.load(), false)
+  t.manager.dispose()
+  t.setOwner(customer())
+  await settle()
+  assert.equal(reads, 1)
+  assert.deepEqual(t.state, paymentMethodState())
 })
