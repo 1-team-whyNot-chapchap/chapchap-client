@@ -51,12 +51,11 @@ export function createConsultationConnection({
     connected = false
     cancel(handshakeTimer)
     if (stopped || version !== generation) return
-    if (attempts >= 6) {
-      onState('failed')
-      return
-    }
+    cancel(timer)
     onState('reconnecting')
-    timer = schedule(() => connect(version), Math.min(30000, 1000 * 2 ** attempts++))
+    const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts, 5))
+    attempts = Math.min(attempts + 1, 5)
+    timer = schedule(() => connect(version), delay)
   }
   async function connect(version) {
     if (stopped || version !== generation) return

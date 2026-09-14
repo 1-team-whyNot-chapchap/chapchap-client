@@ -4,6 +4,13 @@ import { pageCatalog } from './pageCatalog'
 import { authSession } from '../common/api/http.js'
 import { createAccessGuard } from '../domains/auth/routeAccess.js'
 import { loginPath } from '../domains/auth/authSession.js'
+import { BILLING_CALLBACK_PATH } from '../domains/subscription/mobileBillingContext.js'
+import {
+  captureMobileBillingReturn,
+  clearMobileBilling,
+} from '../domains/subscription/mobileBillingReturn.js'
+
+captureMobileBillingReturn()
 
 // 서버의 /auth/callback 리다이렉트를 hash router 경로로 변환한다.
 // 전달받은 문자열로 외부 이동 경로를 만들지 않는다.
@@ -54,7 +61,6 @@ const FaqDesignPage = () => import('../domains/customer/pages/FaqDesignPage.vue'
 const CustomerSupportPage = () => import('../domains/customer/pages/CustomerSupportPage.vue')
 const ConsultationDesignPage = () => import('../domains/customer/pages/ConsultationDesignPage.vue')
 const DeliveryDetailPage = () => import('../domains/delivery/pages/DeliveryDetailPage.vue')
-const DeliveryEditPage = () => import('../domains/delivery/pages/DeliveryEditPage.vue')
 const DeliveryHistoryPage = () => import('../domains/delivery/pages/DeliveryHistoryPage.vue')
 const HomePage = () => import('../domains/customer/pages/HomePage.vue')
 const MenuDetailPage = () => import('../domains/product/pages/MenuDetailPage.vue')
@@ -66,10 +72,9 @@ const PaymentHistoryPage = () => import('../domains/customer/pages/PaymentHistor
 const PaymentMethodListPage = () => import('../domains/customer/pages/PaymentMethodListPage.vue')
 const PaymentMethodRegistrationPage = () =>
   import('../domains/customer/pages/PaymentMethodRegistrationPage.vue')
-const PlanChangePage = () => import('../domains/subscription/pages/PlanChangePage.vue')
-const PlanDetailPage = () => import('../domains/product/pages/PlanDetailPage.vue')
+const PlanMenuListPage = () => import('../domains/product/pages/PlanMenuListPage.vue')
 const PlanPage = () => import('../domains/product/pages/PlanPage.vue')
-const RefundChatPage = () => import('../domains/customer/pages/RefundChatPage.vue')
+const RefundDetailPage = () => import('../domains/customer/pages/RefundDetailPage.vue')
 const RefundHistoryPage = () => import('../domains/customer/pages/RefundHistoryPage.vue')
 const SubscriptionCancelPage = () =>
   import('../domains/subscription/pages/SubscriptionCancelPage.vue')
@@ -159,7 +164,8 @@ const router = createRouter({
     },
     { path: '/menu', name: 'menu', component: MenuListPage },
     { path: '/plans', name: 'plans', component: PlanPage },
-    { path: '/plans/:planId', name: 'plan-detail', component: PlanDetailPage, props: true },
+    { path: '/plans/menus', name: 'plan-menus', component: PlanMenuListPage },
+    { path: '/plans/:planId', name: 'plan-detail', redirect: { name: 'plan-menus', params: {} } },
     ...authRoutes,
     { path: '/wf-008', name: 'wf-008', component: MenuListPage },
     { path: '/wf-009', name: 'wf-009', component: MenuDetailPage },
@@ -171,11 +177,6 @@ const router = createRouter({
       path: '/subscription/rounds/detail',
       name: 'wf-023',
       component: SubscriptionRoundDetailPage,
-    },
-    {
-      path: '/subscription/change-plan',
-      name: 'wf-054',
-      component: PlanChangePage,
     },
     {
       path: '/subscription/cancel',
@@ -192,11 +193,6 @@ const router = createRouter({
       name: 'wf-025',
       component: SubscriptionSettingsConfirmPage,
     },
-    {
-      path: '/subscription/delivery/conditions',
-      name: 'delivery-conditions-edit',
-      component: DeliveryEditPage,
-    },
     { path: '/mypage', name: 'mypage', component: MyPage },
     { path: '/mypage/notifications', name: 'notifications', component: NotificationPage },
     {
@@ -209,16 +205,22 @@ const router = createRouter({
     { path: '/mypage/addresses/new', name: 'wf-029', component: AddressFormPage },
     { path: '/mypage/payment-methods', name: 'wf-030', component: PaymentMethodListPage },
     {
+      path: BILLING_CALLBACK_PATH,
+      name: 'subscription-payment-method-callback',
+      component: () => import('../domains/subscription/pages/PaymentMethodCallbackPage.vue'),
+      meta: { layout: 'minimal' },
+    },
+    {
       path: '/mypage/payment-methods/register',
       name: 'payment-method-register',
       component: PaymentMethodRegistrationPage,
     },
     { path: '/mypage/payments', name: 'wf-031', component: PaymentHistoryPage },
-    { path: '/mypage/payments/detail', name: 'wf-032', component: PaymentDetailPage },
+    { path: '/mypage/payments/:paymentId', name: 'wf-032', component: PaymentDetailPage },
     { path: '/mypage/deliveries', name: 'wf-033', component: DeliveryHistoryPage },
     { path: '/mypage/deliveries/detail', name: 'wf-034', component: DeliveryDetailPage },
     { path: '/mypage/refunds', name: 'wf-035', component: RefundHistoryPage },
-    { path: '/mypage/refunds/chat', name: 'wf-036', component: RefundChatPage },
+    { path: '/mypage/refunds/:refundId', name: 'wf-036', component: RefundDetailPage },
     { path: '/admin', name: 'admin', component: AdminDashboard },
     {
       path: '/admin/consultations',
@@ -576,7 +578,16 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(createAccessGuard(authSession))
+const accessGuard = createAccessGuard(authSession)
+router.beforeEach(async (to, from) => {
+  const result = await accessGuard(to)
+  if (
+    (to.path === BILLING_CALLBACK_PATH && result !== true) ||
+    (from.path === BILLING_CALLBACK_PATH && to.path !== BILLING_CALLBACK_PATH && result !== true)
+  )
+    clearMobileBilling()
+  return result
+})
 authSession.onExpired(() => {
   const path = router.currentRoute.value.path
   if (path !== '/auth/callback' && !path.endsWith('/login'))

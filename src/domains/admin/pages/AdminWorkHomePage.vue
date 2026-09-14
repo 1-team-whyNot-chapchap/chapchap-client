@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import AdminFrame from '../components/AdminFrame.vue'
+import AdminStatistics from '../components/AdminStatistics.vue'
 import { customerApi } from '../../customer/api/customerApi.js'
 import { authSession } from '../../../common/api/http.js'
 const loading = ref(false),
@@ -31,6 +32,7 @@ onUnmounted(() => {
     title="관리자 업무 홈"
     description="담당 업무를 선택하고 실제 처리 목록을 확인하세요."
   >
+    <AdminStatistics />
     <div class="ui-grid work-home-grid">
       <section v-if="authSession.state.user?.role === 'ADMIN'" class="ui-surface ui-stack">
         <h2>배송 운영</h2>

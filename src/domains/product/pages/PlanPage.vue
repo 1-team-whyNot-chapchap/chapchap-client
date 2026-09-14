@@ -33,8 +33,8 @@ function resetPlanHighlight() {
   highlightedPlanId.value = planStore.plans[0]?.planId || ''
 }
 
-function openPlanDetail(planId) {
-  router.push({ name: 'plan-detail', params: { planId } })
+function openPlanDetail() {
+  router.push({ name: 'plan-menus' })
 }
 
 async function retryPlans() {
@@ -102,7 +102,7 @@ function formatUnitPrice(unitPrice) {
           <ul>
             <li v-for="item in planHighlights" :key="item">{{ item }}</li>
           </ul>
-          <button class="text-button" type="button" @click="openPlanDetail(plan.planId)">
+          <button class="text-button" type="button" @click="openPlanDetail">
             플랜 상세 보기
             <ChevronRight :size="16" aria-hidden="true" />
           </button>

@@ -27,6 +27,19 @@ function storageRemove(storage) {
   }
 }
 
+function emptyHistory(month = '', page = 1) {
+  return {
+    month,
+    orders: [],
+    page,
+    size: 3,
+    totalElements: 0,
+    totalPages: 0,
+    hasPrevious: false,
+    hasNext: false,
+  }
+}
+
 export function createOrderStore(
   api = orderApi,
   storage = typeof window === 'undefined' ? null : window.sessionStorage,
@@ -37,14 +50,26 @@ export function createOrderStore(
       orders: [],
       listStatus: 'idle',
       listError: null,
+      listRequest: null,
+      calendarMonth: '',
+      calendarOrders: [],
+      calendarStatus: 'idle',
+      calendarError: null,
+      calendarRequest: null,
+      history: emptyHistory(),
+      historyStatus: 'idle',
+      historyError: null,
+      historyRequest: null,
       selectedOrderId: '',
       detail: null,
       detailStatus: 'idle',
       detailError: null,
+      detailRequest: null,
     }),
 
     actions: {
       clearSelectedOrder() {
+        this.detailRequest = null
         storageRemove(storage)
         this.selectedOrderId = ''
         this.detail = null
@@ -65,6 +90,7 @@ export function createOrderStore(
       selectOrder(orderId) {
         if (!isOrderId(orderId)) return false
         if (this.selectedOrderId !== orderId) {
+          this.detailRequest = null
           this.detail = null
           this.detailStatus = 'idle'
           this.detailError = null
@@ -78,15 +104,82 @@ export function createOrderStore(
         if (!force && ['success', 'empty', 'loading'].includes(this.listStatus)) return this.orders
         this.listStatus = 'loading'
         this.listError = null
+        this.listRequest = {}
+        const pending = this.listRequest
         try {
-          this.orders = await api.listOrders()
+          const orders = await api.listOrders()
+          if (this.listRequest !== pending) return []
+          this.orders = orders
           this.listStatus = this.orders.length ? 'success' : 'empty'
         } catch (error) {
+          if (this.listRequest !== pending) return []
           this.orders = []
           this.listStatus = 'error'
           this.listError = error
+        } finally {
+          if (this.listRequest === pending) this.listRequest = null
         }
         return this.orders
+      },
+
+      async fetchCalendarOrders(month, force = false) {
+        if (
+          !force &&
+          this.calendarMonth === month &&
+          ['success', 'empty', 'loading'].includes(this.calendarStatus)
+        ) {
+          return this.calendarOrders
+        }
+        this.calendarMonth = month
+        this.calendarOrders = []
+        this.calendarStatus = 'loading'
+        this.calendarError = null
+        this.calendarRequest = {}
+        const pending = this.calendarRequest
+        try {
+          const response = await api.listCalendarOrders(month)
+          if (this.calendarRequest !== pending) return []
+          this.calendarMonth = response.month
+          this.calendarOrders = response.orders
+          this.calendarStatus = this.calendarOrders.length ? 'success' : 'empty'
+        } catch (error) {
+          if (this.calendarRequest !== pending) return []
+          this.calendarOrders = []
+          this.calendarStatus = 'error'
+          this.calendarError = error
+        } finally {
+          if (this.calendarRequest === pending) this.calendarRequest = null
+        }
+        return this.calendarOrders
+      },
+
+      async fetchOrderHistory(month, page, force = false) {
+        if (
+          !force &&
+          this.history.month === month &&
+          this.history.page === page &&
+          ['success', 'empty', 'loading'].includes(this.historyStatus)
+        ) {
+          return this.history
+        }
+        this.history = emptyHistory(month, page)
+        this.historyStatus = 'loading'
+        this.historyError = null
+        this.historyRequest = {}
+        const pending = this.historyRequest
+        try {
+          const response = await api.listOrderHistory(month, page)
+          if (this.historyRequest !== pending) return this.history
+          this.history = response
+          this.historyStatus = response.orders.length ? 'success' : 'empty'
+        } catch (error) {
+          if (this.historyRequest !== pending) return this.history
+          this.historyStatus = 'error'
+          this.historyError = error
+        } finally {
+          if (this.historyRequest === pending) this.historyRequest = null
+        }
+        return this.history
       },
 
       async fetchSelectedOrder(force = false) {
@@ -95,13 +188,20 @@ export function createOrderStore(
         if (!force && ['success', 'loading'].includes(this.detailStatus)) return this.detail
         this.detailStatus = 'loading'
         this.detailError = null
+        this.detailRequest = {}
+        const pending = this.detailRequest
         try {
-          this.detail = await api.getOrder(orderId)
+          const detail = await api.getOrder(orderId)
+          if (this.detailRequest !== pending) return null
+          this.detail = detail
           this.detailStatus = 'success'
         } catch (error) {
+          if (this.detailRequest !== pending) return null
           this.detail = null
           this.detailStatus = 'error'
           this.detailError = error
+        } finally {
+          if (this.detailRequest === pending) this.detailRequest = null
         }
         return this.detail
       },

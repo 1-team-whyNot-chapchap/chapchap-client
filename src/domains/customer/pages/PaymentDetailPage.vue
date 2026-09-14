@@ -1,4 +1,4 @@
 <script setup>
-import AccountHistory from '../../subscription/components/AccountHistory.vue'
+import PaymentRefundHistory from '../../subscription/components/PaymentRefundHistory.vue'
 </script>
-<template><AccountHistory kind="payments" detail /></template>
+<template><PaymentRefundHistory kind="payments" detail /></template>

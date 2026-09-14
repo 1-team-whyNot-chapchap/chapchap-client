@@ -93,7 +93,7 @@ function navigate(route) {
     </nav>
 
     <button
-      class="admin-back-link admin-customer-link"
+      class="button button-secondary admin-customer-link"
       :class="{ 'is-mobile-open': menuOpen }"
       type="button"
       @click="navigate('home')"
@@ -172,6 +172,11 @@ function navigate(route) {
   outline-offset: -3px;
 }
 
+.admin-customer-link {
+  margin-top: 18px;
+  margin-bottom: 8px;
+}
+
 @media (max-width: 1024px) {
   .admin-sidebar {
     position: sticky;
@@ -206,6 +211,7 @@ function navigate(route) {
   .admin-customer-link {
     display: none;
     grid-column: 1 / -1;
+    margin: 0;
   }
   .admin-customer-link.is-mobile-open {
     display: block;

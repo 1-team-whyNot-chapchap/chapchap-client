@@ -1,6 +1,5 @@
 <script setup>
 import {
-  Bell,
   ChevronRight,
   CreditCard,
   MapPin,
@@ -17,6 +16,8 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import http, { authSession } from '../../../common/api/http.js'
 import { createAccountApi } from '../../auth/accountApi.js'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
+import MyPageSubscriptionSummary from '../../subscription/components/MyPageSubscriptionSummary.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const emit = defineEmits(['navigate'])
 const api = createAccountApi(http)
@@ -52,6 +53,12 @@ onBeforeUnmount(() => {
 })
 
 const links = [
+  {
+    label: '내 구독',
+    detail: '구독 상태와 주문 일정을 확인해요',
+    icon: PackageCheck,
+    route: 'subscription',
+  },
   { label: '내 정보', detail: '이름과 연락처를 관리해요', icon: UserRound, route: 'wf-027' },
   { label: '배송지', detail: '기본 배송지와 추가 주소', icon: MapPin, route: 'wf-028' },
   { label: '결제 수단', detail: '기본 카드와 결제 상태', icon: CreditCard, route: 'wf-030' },
@@ -94,26 +101,14 @@ const links = [
       <p class="my-greeting">나의 챱챱 · 안녕하세요</p>
       <section class="mypage-profile">
         <RouterLink class="profile-avatar" to="/mypage/profile" aria-label="프로필 사진 변경">
-          <img
-            v-if="photo"
-            :src="photo"
-            alt="내 프로필 사진"
-            @error="failPhoto"
-          />
+          <img v-if="photo" :src="photo" alt="내 프로필 사진" @error="failPhoto" />
           <UserRound v-else :size="36" aria-hidden="true" />
         </RouterLink>
         <h1 class="profile-name">
           {{ authSession.state.user?.name || '마이페이지'
           }}<span v-if="authSession.state.user?.name">님</span>
         </h1>
-        <button
-          type="button"
-          class="icon-button"
-          aria-label="알림함"
-          @click="emit('navigate', 'notifications')"
-        >
-          <Bell :size="20" aria-hidden="true" />
-        </button>
+        <NotificationBell icon-only />
       </section>
 
       <p v-if="photoError" class="photo-error" role="status">
@@ -121,16 +116,7 @@ const links = [
         <button type="button" class="text-action" @click="loadPhoto">다시 시도</button>
       </p>
 
-      <section class="account-metrics">
-        <div>
-          <span>현재 구독</span>
-          <strong>구독 조회 준비 중</strong>
-        </div>
-        <div>
-          <span>다음 배송</span>
-          <strong>배송 조회 준비 중</strong>
-        </div>
-      </section>
+      <MyPageSubscriptionSummary />
 
       <section class="settings-list" aria-label="마이페이지 메뉴">
         <button
@@ -233,36 +219,6 @@ const links = [
   background: var(--color-surface);
 }
 
-.account-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 30px;
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-  background: var(--color-surface);
-}
-
-.account-metrics div {
-  display: grid;
-  gap: 6px;
-  padding: 19px;
-  min-height: 92px;
-  align-content: center;
-}
-
-.account-metrics div + div {
-  border-left: 1px solid var(--color-border);
-}
-
-.account-metrics span {
-  color: var(--color-text-muted);
-  font-size: var(--font-caption);
-}
-
-.account-metrics strong {
-  font-size: var(--font-body);
-}
-
 .settings-list {
   margin-top: 30px;
   overflow: hidden;
@@ -325,9 +281,6 @@ const links = [
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.account-metrics strong {
-  overflow-wrap: anywhere;
-}
 .settings-list__item:hover {
   background: var(--color-surface-subtle);
 }
@@ -368,18 +321,11 @@ const links = [
   .settings-list__item:nth-child(odd) {
     border-right: 1px solid var(--color-border);
   }
-  .settings-list__item:nth-last-child(2) {
+  .settings-list__item:nth-last-child(2):nth-child(odd) {
     border-bottom: 0;
   }
 }
 @media (max-width: 480px) {
-  .account-metrics {
-    grid-template-columns: 1fr;
-  }
-  .account-metrics div + div {
-    border-left: 0;
-    border-top: 1px solid var(--color-border);
-  }
   .my-support {
     padding: 18px;
   }

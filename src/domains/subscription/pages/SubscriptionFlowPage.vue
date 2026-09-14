@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle2, Minus, Plus, Truck } from 'lucide-vue-next'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
@@ -9,22 +9,57 @@ import {
 } from '../currentSubscriptionDisplay.js'
 import {
   createFirstSubscriptionRequest,
+  firstSubscriptionStepIssue,
   DELIVERY_TIME_SLOTS,
-  DELIVERY_WEEKDAYS,
   DELIVERY_WEEKDAY_LABELS,
 } from '../firstSubscriptionForm.js'
 import { useAddressStore } from '../stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
 import { usePlanStore } from '../stores/usePlanStore.js'
+import PaymentMethodPanel from '../components/PaymentMethodPanel.vue'
+import SubscriptionAddressCreateModal from '../components/SubscriptionAddressCreateModal.vue'
+import SubscriptionScheduleSelector from '../components/SubscriptionScheduleSelector.vue'
+import { authSession } from '../../../common/api/http.js'
+import { recoverAbandonedBilling } from '../mobileBillingReturn.js'
 
 const props = defineProps({ step: { type: Number, required: true } })
 const route = useRoute()
 const router = useRouter()
 const addressStore = useAddressStore()
 const application = useFirstSubscriptionStore()
+if (props.step === 5 && typeof window !== 'undefined') {
+  try {
+    const previous = recoverAbandonedBilling(
+      authSession.state.user,
+      'subscription',
+      route.query.planId,
+    )
+    if (previous?.draft) application.restoreMobileDraft(previous.draft)
+  } catch {
+    /* Existing step guards reject missing/invalid input. */
+  }
+}
 const planStore = usePlanStore()
-const validationMessage = computed(
-  () => application.error?.serverMessage || application.error?.message || '',
+const paymentPanel = ref(null)
+const addressAddButton = ref(null)
+const isAddressCreateOpen = ref(false)
+const paymentReady = ref(false)
+const checkingPayment = ref(false)
+const agreeingTerms = ref(false)
+const entryStatus = ref('checking')
+const entryError = ref('')
+let initialization = 0
+let mounted = true
+onBeforeUnmount(() => {
+  mounted = false
+  initialization += 1
+  application.invalidatePreview()
+  application.enterStep(null)
+})
+const validationMessage = computed(() =>
+  application.errorStep === props.step
+    ? application.error?.serverMessage || application.error?.message || ''
+    : '',
 )
 const planId = computed(() => (typeof route.query.planId === 'string' ? route.query.planId : ''))
 const plan = computed(() => planStore.planById(application.planId))
@@ -32,9 +67,13 @@ const addresses = computed(() => addressStore.addresses)
 const addressById = computed(
   () => new Map(addresses.value.map((address) => [address.addressId, address])),
 )
-const steps = ['배송 요일', '배송지', '식사·시간', '약관·견적', '신청']
+const steps = ['배송 요일', '배송지', '식사·시간', '신청 정보·약관', '예상 금액·결제']
+const previewReady = computed(
+  () => application.previewStatus === 'success' && Boolean(application.preview),
+)
 const hasAcceptedAllTerms = computed(
   () =>
+    application.termsStatus === 'success' &&
     application.requiredTerms.length > 0 &&
     application.requiredTerms.every((term) => application.agreedTerms[term.termsType]),
 )
@@ -47,30 +86,84 @@ function navigate(name) {
   router.push({ name, query: flowQuery() })
 }
 
-async function initialize() {
+async function redirectIssue(issue) {
+  application.setError(new Error(issue.message), issue.step, 'redirect')
+  await router.replace({ name: `wf-0${12 + issue.step}`, query: flowQuery() })
+}
+
+async function initialize(force = false) {
+  if (planId.value) application.begin(planId.value)
+  application.enterStep(props.step)
+  const current = ++initialization
+  const session = application.session
+  const active = () => mounted && current === initialization && session === application.session
+  entryStatus.value = 'checking'
+  entryError.value = ''
+  paymentReady.value = false
+  application.invalidatePreview()
   if (!planId.value) return
-  application.begin(planId.value)
-  await planStore.fetchPlan(planId.value)
+  await planStore.fetchPlan(planId.value, force)
+  if (!active()) return
+  if (planStore.detailStatuses[planId.value] !== 'success') return
+  const weekdayIssue =
+    props.step <= 5 ? firstSubscriptionStepIssue(Math.min(props.step, 2), application) : null
+  if (weekdayIssue) return redirectIssue(weekdayIssue)
   if (props.step >= 2) {
-    await addressStore.fetchAddresses()
-    application.applyDefaultAddress(
-      addresses.value.find((address) => address.isDefault)?.addressId ||
-        addresses.value[0]?.addressId,
-    )
+    await addressStore.fetchAddresses(props.step <= 5)
+    if (!active()) return
+    if (props.step <= 5 && !['success', 'empty'].includes(addressStore.listStatus)) {
+      entryStatus.value = 'error'
+      entryError.value = '배송지를 불러오지 못했습니다. 다시 시도해 주세요.'
+      return
+    }
+    // 배송지 입력 화면에서만 기본값을 채운다. URL 진입 검사에서 누락을 숨기지 않는다.
+    if (props.step === 2 || props.step > 5) {
+      application.applyDefaultAddress(
+        addresses.value.find((address) => address.isDefault)?.addressId ||
+          addresses.value[0]?.addressId,
+      )
+    }
   }
-  if (props.step >= 4) await application.fetchRequiredTerms()
-}
-
-watch([planId, () => props.step], initialize, { immediate: true })
-
-function toggleWeekday(weekday) {
-  const selected = application.deliveryConditions.map((condition) => condition.weekday)
-  application.setDeliveryWeekdays(
-    selected.includes(weekday)
-      ? selected.filter((value) => value !== weekday)
-      : DELIVERY_WEEKDAYS.filter((value) => [...selected, weekday].includes(value)),
+  const inputIssue = firstSubscriptionStepIssue(
+    Math.min(props.step, 4),
+    application,
+    addresses.value,
   )
+  if (props.step <= 5 && inputIssue) return redirectIssue(inputIssue)
+  if (props.step >= 4) await application.fetchRequiredTerms()
+  if (!active()) return
+  const issue = firstSubscriptionStepIssue(props.step, application, addresses.value)
+  if (issue) return redirectIssue(issue)
+  entryStatus.value = 'ready'
+  if (props.step === 5) await requestPreview()
 }
+
+watch(
+  () => application.session,
+  () => {
+    initialization += 1
+    entryStatus.value = 'checking'
+    paymentReady.value = false
+  },
+  { flush: 'sync' },
+)
+watch([planId, () => props.step], () => initialize(), { immediate: true })
+
+// 입력값이 바뀌었을 때만 재검사한다. 서버 실패나 이동 직후의 안내를 무조건 지우지 않는다.
+watch(
+  [() => application.deliveryConditions, () => application.agreedTerms],
+  () => {
+    if (application.errorKind !== 'validation' || application.errorStep !== props.step) return
+    if (props.step === 4) {
+      if (hasAcceptedAllTerms.value) application.clearError()
+    } else if (props.step <= 3) {
+      const issue = firstSubscriptionStepIssue(props.step + 1, application, addresses.value)
+      if (issue) application.setError(new Error(issue.message), props.step, 'validation')
+      else application.clearError()
+    }
+  },
+  { deep: true },
+)
 
 function updateCondition(weekday, changes) {
   application.updateDeliveryCondition(weekday, changes)
@@ -88,6 +181,11 @@ function selectedAddress(addressId) {
   return addressById.value.get(addressId)
 }
 
+function updateAddressCreateVisible(value) {
+  isAddressCreateOpen.value = value
+  if (!value) nextTick(() => addressAddButton.value?.focus())
+}
+
 function formatCurrency(value) {
   return `${Number(value || 0).toLocaleString('ko-KR')}원`
 }
@@ -100,7 +198,7 @@ function requestOrMessage() {
   try {
     return createFirstSubscriptionRequest(application.planId, application.deliveryConditions)
   } catch (error) {
-    application.error = error
+    application.setError(error, props.step, 'validation')
     return null
   }
 }
@@ -114,55 +212,72 @@ function goPrevious() {
 }
 
 function goNext() {
-  application.error = null
-  if (props.step === 1) {
-    if (!application.deliveryConditions.length) {
-      application.error = new Error('배송 요일을 한 개 이상 선택해 주세요.')
-      return
-    }
-    navigate('wf-014')
-  } else if (props.step === 2) {
-    if (!addresses.value.length)
-      application.error = new Error('구독에 사용할 배송지를 먼저 등록해 주세요.')
-    else if (requestOrMessage()) navigate('wf-015')
-  } else if (props.step === 3 && requestOrMessage()) {
-    navigate('wf-016')
+  if (entryStatus.value !== 'ready') return
+  application.clearError()
+  const issue = firstSubscriptionStepIssue(props.step + 1, application, addresses.value)
+  if (issue) {
+    application.setError(new Error(issue.message), props.step, 'validation')
+    return
+  }
+  if (props.step >= 1 && props.step <= 3) navigate(`wf-0${13 + props.step}`)
+}
+
+async function continueToPayment() {
+  if (agreeingTerms.value || props.step !== 4 || entryStatus.value !== 'ready') return
+  application.clearError()
+  const request = requestOrMessage()
+  if (!request) return
+  if (!hasAcceptedAllTerms.value) {
+    application.setError(new Error('모든 필수 약관에 동의해 주세요.'), 4, 'validation')
+    return
+  }
+  const current = initialization
+  agreeingTerms.value = true
+  try {
+    if (!(await application.agreeRequiredTerms())) return
+    if (mounted && props.step === 4 && current === initialization) navigate('wf-017')
+  } catch (error) {
+    if (!mounted || current !== initialization) return
+    application.setError(error, 4)
+    if (['TERMS_002', 'TERMS_VERSION_MISMATCH'].includes(error?.code))
+      await application.fetchRequiredTerms(true)
+  } finally {
+    agreeingTerms.value = false
   }
 }
 
 async function requestPreview() {
-  application.error = null
+  if (props.step !== 5 || application.previewStatus === 'loading') return
   const request = requestOrMessage()
-  if (!request) return
-  if (!hasAcceptedAllTerms.value) {
-    application.error = new Error('모든 필수 약관에 동의해 주세요.')
-    return
-  }
-  try {
-    await application.agreeRequiredTerms()
-  } catch (error) {
-    application.error = error
-    if (error?.code === 'TERMS_VERSION_MISMATCH') await application.fetchRequiredTerms(true)
-    return
-  }
-  if (await application.requestPreview(request)) navigate('wf-017')
+  if (!request || !hasAcceptedAllTerms.value || !application.termsConfirmed) return
+  await application.requestPreview(request)
 }
 
 async function submit() {
-  application.error = null
+  if (checkingPayment.value || application.submitStatus === 'loading') return
+  application.clearError()
+  if (!paymentReady.value) {
+    application.setError(new Error('결제에 사용할 현재 결제수단을 먼저 확인해 주세요.'), 5)
+    return
+  }
   const request = requestOrMessage()
-  if (!request || !application.preview) {
-    application.error = new Error('예상 결제금액을 먼저 확인해 주세요.')
+  if (!request || !previewReady.value) {
+    application.setError(new Error('예상 결제금액을 먼저 확인해 주세요.'), 5)
     return
   }
+  checkingPayment.value = true
   try {
-    await application.agreeRequiredTerms()
+    if (!(await application.agreeRequiredTerms())) return
+    if (!(await paymentPanel.value?.verifyCurrent())) return
+    if (!mounted || props.step !== 5) return
+    if ((await application.submit(request)) && mounted) navigate('wf-018')
   } catch (error) {
-    application.error = error
-    if (error?.code === 'TERMS_VERSION_MISMATCH') await application.fetchRequiredTerms(true)
-    return
+    application.setError(error, 5)
+    if (['TERMS_002', 'TERMS_VERSION_MISMATCH'].includes(error?.code))
+      await application.fetchRequiredTerms(true)
+  } finally {
+    checkingPayment.value = false
   }
-  if (await application.submit(request)) navigate('wf-018')
 }
 </script>
 
@@ -202,11 +317,36 @@ async function submit() {
           <h1>플랜 정보를 확인할 수 없어요.</h1>
           <p>판매 상태를 확인한 뒤 다시 시도해 주세요.</p>
           <button
+            v-if="step <= 5"
+            class="button button-secondary"
+            type="button"
+            @click="initialize(true)"
+          >
+            다시 시도
+          </button>
+          <button
             class="button button-primary"
             type="button"
             @click="router.push({ name: 'plans' })"
           >
             플랜 목록
+          </button>
+        </section>
+        <section
+          v-else-if="step <= 5 && entryStatus === 'checking'"
+          class="ui-empty flow-empty"
+          aria-busy="true"
+        >
+          신청 정보를 확인하고 있어요.
+        </section>
+        <section
+          v-else-if="step <= 5 && entryStatus === 'error'"
+          class="ui-empty flow-empty"
+          role="alert"
+        >
+          <p>{{ entryError }}</p>
+          <button class="button button-secondary" type="button" @click="initialize(true)">
+            다시 시도
           </button>
         </section>
         <template v-else-if="plan">
@@ -218,45 +358,18 @@ async function submit() {
                   '배송받을 요일을 선택해 주세요.',
                   '요일별 배송지를 선택해 주세요.',
                   '식사 수량과 시간을 설정해 주세요.',
-                  '필수 약관과 예상 결제금액을 확인해 주세요.',
-                  '구독 신청 내용을 최종 확인해 주세요.',
+                  '신청 정보와 필수 약관을 확인해 주세요.',
+                  '예상 결제금액과 결제수단을 확인해 주세요.',
                 ][step - 1]
               }}
             </h1>
-            <p>
-              {{ plan.name }}의 1~31번 고정 메뉴는 안내용이며, 별도로 선택하거나 전송하지 않습니다.
-            </p>
           </header>
           <section v-if="step === 1" class="flow-panel">
-            <div class="weekday-picker" role="group" aria-label="반복 배송 요일">
-              <button
-                v-for="weekday in DELIVERY_WEEKDAYS"
-                :key="weekday"
-                class="weekday-button"
-                :class="{
-                  'is-selected': application.deliveryConditions.some(
-                    (item) => item.weekday === weekday,
-                  ),
-                }"
-                type="button"
-                :aria-pressed="
-                  application.deliveryConditions.some((item) => item.weekday === weekday)
-                "
-                @click="toggleWeekday(weekday)"
-              >
-                {{ DELIVERY_WEEKDAY_LABELS[weekday].replace('요일', '') }}
-              </button>
-            </div>
-            <p class="flow-help">
-              월요일부터 토요일 중 필요한 요일만 선택할 수 있습니다. 최소 선택 일수는 없습니다.
-            </p>
-            <section class="fixed-menu-note">
-              <h2>고정 메뉴 안내</h2>
-              <p>
-                {{ plan.menus.length }}개 메뉴가 날짜 순번에 맞춰 제공됩니다. 메뉴·수량 선택은 구독
-                요청에 포함되지 않습니다.
-              </p>
-            </section>
+            <SubscriptionScheduleSelector
+              :model-value="application.deliveryConditions.map((item) => item.weekday)"
+              :plan="plan"
+              @update:model-value="application.setDeliveryWeekdays"
+            />
           </section>
           <section v-else-if="step === 2" class="flow-panel">
             <p v-if="addressStore.listStatus === 'loading'" class="flow-help" role="status">
@@ -274,6 +387,9 @@ async function submit() {
                     :value="condition.addressId"
                     @change="updateCondition(condition.weekday, { addressId: $event.target.value })"
                   >
+                    <option v-if="!selectedAddress(condition.addressId)" value="" disabled>
+                      배송지를 선택해 주세요.
+                    </option>
                     <option
                       v-for="address in addresses"
                       :key="address.addressId"
@@ -293,11 +409,12 @@ async function submit() {
               <p>구독을 신청하려면 배송지를 하나 이상 등록해 주세요.</p>
             </section>
             <button
+              ref="addressAddButton"
               class="button button-outline"
               type="button"
-              @click="router.push({ name: 'wf-028' })"
+              @click="isAddressCreateOpen = true"
             >
-              배송지 관리
+              배송지 추가
             </button>
           </section>
           <section v-else-if="step === 3" class="flow-panel">
@@ -390,6 +507,7 @@ async function submit() {
                 ><input
                   :checked="application.agreedTerms[term.termsType]"
                   type="checkbox"
+                  :disabled="agreeingTerms"
                   @change="application.setTermAgreement(term.termsType, $event.target.checked)"
                 /><span
                   ><strong>[필수] {{ term.title }}</strong
@@ -401,8 +519,17 @@ async function submit() {
           </section>
           <section v-else-if="step === 5" class="flow-panel">
             <section class="review-card price-card">
-              <h2>서버 예상 결제금액</h2>
-              <dl>
+              <h2>예상 결제금액</h2>
+              <p v-if="application.previewStatus === 'loading'" role="status">
+                예상 결제금액을 불러오고 있어요.
+              </p>
+              <div v-else-if="!previewReady" role="alert">
+                <p>예상 결제금액을 확인하지 못했습니다. 다시 조회해 주세요.</p>
+                <button class="button button-secondary" type="button" @click="requestPreview">
+                  예상 금액 다시 조회
+                </button>
+              </div>
+              <dl v-else>
                 <div>
                   <dt>예상 이용 기간</dt>
                   <dd>
@@ -415,12 +542,15 @@ async function submit() {
                   </dd>
                 </div>
                 <div>
-                  <dt>식사 금액</dt>
-                  <dd>{{ formatCurrency(application.preview?.totalMealAmount) }}</dd>
-                </div>
-                <div>
-                  <dt>배송비</dt>
-                  <dd>{{ formatCurrency(application.preview?.totalDeliveryFee) }}</dd>
+                  <dt>할인 전 구독 금액</dt>
+                  <dd>
+                    {{
+                      formatCurrency(
+                        Number(application.preview.totalMealAmount) +
+                          Number(application.preview.totalDeliveryFee),
+                      )
+                    }}
+                  </dd>
                 </div>
                 <div>
                   <dt>할인 금액</dt>
@@ -434,17 +564,11 @@ async function submit() {
             </section>
             <section class="review-card">
               <h2>자동결제수단</h2>
-              <p>
-                첫 결제와 이후 정기결제에는 서버에 설정된 현재 자동결제수단이 사용됩니다. 이
-                신청에서는 결제수단을 선택하거나 결제수단 ID를 전송하지 않습니다.
-              </p>
-              <button
-                class="button button-outline"
-                type="button"
-                @click="router.push({ name: 'wf-030' })"
-              >
-                결제수단 관리
-              </button>
+              <PaymentMethodPanel
+                ref="paymentPanel"
+                :disabled="checkingPayment || application.submitStatus === 'loading'"
+                @ready="paymentReady = $event"
+              />
             </section>
           </section>
           <section v-else-if="step === 6" class="flow-result">
@@ -471,6 +595,7 @@ async function submit() {
               v-if="step <= 5"
               class="button button-secondary"
               type="button"
+              :disabled="agreeingTerms || checkingPayment || application.submitStatus === 'loading'"
               @click="goPrevious"
             >
               이전</button
@@ -480,17 +605,20 @@ async function submit() {
               v-else-if="step === 4"
               class="button button-primary"
               type="button"
-              :disabled="
-                application.termsStatus === 'loading' || application.previewStatus === 'loading'
-              "
-              @click="requestPreview"
+              :disabled="application.termsStatus !== 'success' || agreeingTerms"
+              @click="continueToPayment"
             >
-              예상 결제금액 확인</button
+              {{ agreeingTerms ? '약관 동의 처리 중…' : '다음' }}</button
             ><button
               v-else-if="step === 5"
               class="button button-primary"
               type="button"
-              :disabled="application.submitStatus === 'loading'"
+              :disabled="
+                !previewReady ||
+                !paymentReady ||
+                checkingPayment ||
+                application.submitStatus === 'loading'
+              "
               @click="submit"
             >
               구독 신청 및 결제</button
@@ -513,6 +641,10 @@ async function submit() {
         </template>
       </template>
     </DesignPreview>
+    <SubscriptionAddressCreateModal
+      :visible="isAddressCreateOpen"
+      @update:visible="updateAddressCreateVisible"
+    />
   </div>
 </template>
 

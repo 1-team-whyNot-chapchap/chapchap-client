@@ -6,8 +6,10 @@ import PageBackButton from '../../../common/components/navigation/PageBackButton
 import StatusBadge from '../../../common/components/feedback/StatusBadge.vue'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import ContentState from '../../../common/components/feedback/ContentState.vue'
+import CustomerRiderLocationPanel from '../components/CustomerRiderLocationPanel.vue'
 import http from '../../../common/api/http.js'
 import { createCustomerDeliveryApi } from '../api/customerDeliveryApi.js'
+import { deliveryMethodLabel } from '../deliveryMethodLabel.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,8 +25,7 @@ const statusLabel = (value) =>
     value
   ] || value
 const slotLabel = (value) => ({ LUNCH: '점심', DINNER: '저녁' })[value] || value
-const handoffLabel = (value) =>
-  ({ DIRECT: '직접 전달', DOOR: '문 앞 전달', GUARD: '경비실 전달' })[value] || value || '확인 중'
+const handoffLabel = deliveryMethodLabel
 
 async function loadDelivery() {
   const deliveryId = route.query.deliveryId
@@ -130,6 +131,11 @@ onBeforeUnmount(() => requestId++)
               </div>
             </dl>
           </section>
+          <CustomerRiderLocationPanel
+            v-if="delivery.status === 'DELIVERING'"
+            :delivery-id="delivery.deliveryId"
+            :delivering="true"
+          />
         </div>
       </ContentState>
     </DesignPreview>

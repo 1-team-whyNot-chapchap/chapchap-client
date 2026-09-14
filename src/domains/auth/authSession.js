@@ -162,6 +162,12 @@ export function createAuthSession(http, authHttp) {
       clear()
     },
     clear,
+    getAccessToken() {
+      return accessToken
+    },
+    refreshAccessToken() {
+      return refresh()
+    },
     async logout() {
       // 쿠키 회전이 끝난 뒤 종료하여 늦게 온 refresh 응답이 쿠키를 되살리지 않게 한다.
       if (refreshPromise) await refreshPromise.catch(() => {})
