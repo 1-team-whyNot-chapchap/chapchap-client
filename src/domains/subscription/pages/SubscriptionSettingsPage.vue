@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, watch } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { authSession } from '../../../common/api/http.js'
 import { Minus, Plus } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import {
@@ -31,15 +32,27 @@ const canEdit = computed(
 )
 
 async function initialize() {
+  const owner = authSession.state.user?.userId
   await Promise.all([
     currentStore.fetchCurrentSubscription(true),
     addressStore.fetchAddresses(true),
     planStore.fetchPlans(),
   ])
-  if (subscription.value && !changeStore.deliveryConditions.length)
-    changeStore.initialize(subscription.value)
+  if (owner !== authSession.state.user?.userId) return
+  if (canEdit.value && (!changeStore.baseline || changeStore.result))
+    await changeStore.fetchBaseline()
 }
-onMounted(initialize)
+watch(
+  () => authSession.state.user?.userId,
+  (owner, previous) => {
+    if (previous !== undefined && owner !== previous) changeStore.$reset()
+    if (owner) initialize()
+  },
+  { immediate: true, flush: 'sync' },
+)
+onBeforeRouteLeave((to) => {
+  if (to.name !== 'wf-025') changeStore.$reset()
+})
 function toggleWeekday(weekday) {
   const selected = changeStore.deliveryConditions.map((condition) => condition.weekday)
   changeStore.setDeliveryWeekdays(
@@ -128,137 +141,171 @@ function retry() {
       <button class="button button-secondary" type="button" @click="retry">다시 시도</button>
     </section>
     <template v-else>
-      <section class="setting-card">
-        <h2>플랜</h2>
-        <label
-          >변경할 플랜<select
-            :value="changeStore.planId"
-            @change="changeStore.setPlan($event.target.value)"
-          >
-            <option v-for="plan in planStore.plans" :key="plan.planId" :value="plan.planId">
-              {{ plan.name }} · {{ Number(plan.unitPrice || 0).toLocaleString('ko-KR') }}원
-            </option>
-          </select></label
-        >
-      </section>
-      <section class="setting-card">
-        <h2>배송 요일</h2>
-        <div class="weekday-picker" role="group" aria-label="배송 요일">
-          <button
-            v-for="weekday in DELIVERY_WEEKDAYS"
-            :key="weekday"
-            class="weekday-button"
-            :class="{
-              'is-selected': changeStore.deliveryConditions.some(
-                (item) => item.weekday === weekday,
-              ),
-            }"
-            :aria-pressed="changeStore.deliveryConditions.some((item) => item.weekday === weekday)"
-            type="button"
-            @click="toggleWeekday(weekday)"
-          >
-            {{ DELIVERY_WEEKDAY_LABELS[weekday].replace('요일', '') }}
-          </button>
-        </div>
-      </section>
-      <section v-if="!addresses.length" class="ui-empty">
-        <h2>등록된 배송지가 없어요.</h2>
-        <p>설정 변경 전에 배송지를 하나 이상 등록해 주세요.</p>
+      <section v-if="changeStore.baselineStatus !== 'success'" class="ui-empty" role="status">
+        <h2>
+          {{
+            changeStore.baselineStatus === 'error'
+              ? '설정 변경 기준을 불러오지 못했어요.'
+              : '설정 변경 기준을 불러오고 있어요.'
+          }}
+        </h2>
+        <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
         <button
-          class="button button-primary"
+          v-if="changeStore.baselineStatus === 'error'"
+          class="button button-secondary"
           type="button"
-          @click="router.push({ name: 'wf-029' })"
+          @click="retry"
         >
-          배송지 등록
+          다시 시도
         </button>
       </section>
-      <section v-else class="setting-card">
-        <h2>요일별 배송 조건</h2>
-        <article
-          v-for="condition in changeStore.deliveryConditions"
-          :key="condition.weekday"
-          class="condition-card"
-        >
-          <h3>{{ DELIVERY_WEEKDAY_LABELS[condition.weekday] }}</h3>
-          <div class="condition-address">
-            <label
-              >배송지<select
-                :value="condition.addressId"
-                @change="
-                  changeStore.updateDeliveryCondition(condition.weekday, {
-                    addressId: $event.target.value,
-                  })
-                "
-              >
-                <option
-                  v-for="address in addresses"
-                  :key="address.addressId"
-                  :value="address.addressId"
-                >
-                  {{ address.name }}
-                </option>
-              </select></label
-            >
-            <p class="address-preview">
-              {{
-                formatSubscriptionAddress(
-                  addresses.find((address) => address.addressId === condition.addressId),
-                )
-              }}
-            </p>
-          </div>
-          <div class="condition-field">
-            <span :id="`quantity-label-${condition.weekday}`">식사 수량</span>
-            <div
-              class="quantity-control"
-              role="group"
-              :aria-labelledby="`quantity-label-${condition.weekday}`"
-            >
-              <button
-                type="button"
-                :aria-label="`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량 줄이기`"
-                :disabled="condition.mealQuantity <= 1"
-                @click="changeQuantity(condition.weekday, -1)"
-              >
-                <Minus :size="16" /></button
-              ><output>{{ condition.mealQuantity }}식</output
-              ><button
-                type="button"
-                :aria-label="`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량 늘리기`"
-                :disabled="condition.mealQuantity >= 6"
-                @click="changeQuantity(condition.weekday, 1)"
-              >
-                <Plus :size="16" />
-              </button>
-            </div>
-          </div>
+      <template v-else>
+        <aside v-if="changeStore.baselineNeedsRefresh" class="ui-note" role="alert">
+          <p>
+            변경 적용일이 달라졌습니다. 최신 기준을 불러오면 작성 중인 변경 내용은 초기화됩니다.
+          </p>
+          <button class="button button-secondary" type="button" @click="retry">
+            최신 기준 다시 불러오기
+          </button>
+        </aside>
+        <section class="setting-card">
+          <h2>플랜</h2>
           <label
-            >배송 시간대<select
-              :value="condition.deliveryTimeSlot"
-              @change="
-                changeStore.updateDeliveryCondition(condition.weekday, {
-                  deliveryTimeSlot: $event.target.value,
-                })
-              "
+            >변경할 플랜<select
+              :value="changeStore.planId"
+              @change="changeStore.setPlan($event.target.value)"
             >
-              <option v-for="slot in DELIVERY_TIME_SLOTS" :key="slot.value" :value="slot.value">
-                {{ slot.label }}
+              <option v-for="plan in planStore.plans" :key="plan.planId" :value="plan.planId">
+                {{ plan.name }} · {{ Number(plan.unitPrice || 0).toLocaleString('ko-KR') }}원
               </option>
             </select></label
           >
-        </article>
-      </section>
-      <p v-if="errorMessage" class="setting-error" role="alert">{{ errorMessage }}</p>
-      <div class="ui-actions ui-actions--end">
-        <button
-          class="button button-primary"
-          type="button"
-          :disabled="!addresses.length || changeStore.previewStatus === 'loading'"
-          @click="preview"
-        >
-          {{ changeStore.previewStatus === 'loading' ? '계산 중…' : '변경 내용 확인' }}
-        </button>
-      </div>
+        </section>
+        <section class="setting-card">
+          <h2>배송 요일</h2>
+          <div class="weekday-picker" role="group" aria-label="배송 요일">
+            <button
+              v-for="weekday in DELIVERY_WEEKDAYS"
+              :key="weekday"
+              class="weekday-button"
+              :class="{
+                'is-selected': changeStore.deliveryConditions.some(
+                  (item) => item.weekday === weekday,
+                ),
+              }"
+              :aria-pressed="
+                changeStore.deliveryConditions.some((item) => item.weekday === weekday)
+              "
+              type="button"
+              @click="toggleWeekday(weekday)"
+            >
+              {{ DELIVERY_WEEKDAY_LABELS[weekday].replace('요일', '') }}
+            </button>
+          </div>
+        </section>
+        <section v-if="!addresses.length" class="ui-empty">
+          <h2>등록된 배송지가 없어요.</h2>
+          <p>설정 변경 전에 배송지를 하나 이상 등록해 주세요.</p>
+          <button
+            class="button button-primary"
+            type="button"
+            @click="router.push({ name: 'wf-029' })"
+          >
+            배송지 등록
+          </button>
+        </section>
+        <section v-else class="setting-card">
+          <h2>요일별 배송 조건</h2>
+          <article
+            v-for="condition in changeStore.deliveryConditions"
+            :key="condition.weekday"
+            class="condition-card"
+          >
+            <h3>{{ DELIVERY_WEEKDAY_LABELS[condition.weekday] }}</h3>
+            <div class="condition-address">
+              <label
+                >배송지<select
+                  :value="condition.addressId"
+                  @change="
+                    changeStore.updateDeliveryCondition(condition.weekday, {
+                      addressId: $event.target.value,
+                    })
+                  "
+                >
+                  <option
+                    v-for="address in addresses"
+                    :key="address.addressId"
+                    :value="address.addressId"
+                  >
+                    {{ address.name }}
+                  </option>
+                </select></label
+              >
+              <p class="address-preview">
+                {{
+                  formatSubscriptionAddress(
+                    addresses.find((address) => address.addressId === condition.addressId),
+                  )
+                }}
+              </p>
+            </div>
+            <div class="condition-field">
+              <span :id="`quantity-label-${condition.weekday}`">식사 수량</span>
+              <div
+                class="quantity-control"
+                role="group"
+                :aria-labelledby="`quantity-label-${condition.weekday}`"
+              >
+                <button
+                  type="button"
+                  :aria-label="`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량 줄이기`"
+                  :disabled="condition.mealQuantity <= 1"
+                  @click="changeQuantity(condition.weekday, -1)"
+                >
+                  <Minus :size="16" /></button
+                ><output>{{ condition.mealQuantity }}식</output
+                ><button
+                  type="button"
+                  :aria-label="`${DELIVERY_WEEKDAY_LABELS[condition.weekday]} 식사 수량 늘리기`"
+                  :disabled="condition.mealQuantity >= 6"
+                  @click="changeQuantity(condition.weekday, 1)"
+                >
+                  <Plus :size="16" />
+                </button>
+              </div>
+            </div>
+            <label
+              >배송 시간대<select
+                :value="condition.deliveryTimeSlot"
+                @change="
+                  changeStore.updateDeliveryCondition(condition.weekday, {
+                    deliveryTimeSlot: $event.target.value,
+                  })
+                "
+              >
+                <option v-for="slot in DELIVERY_TIME_SLOTS" :key="slot.value" :value="slot.value">
+                  {{ slot.label }}
+                </option>
+              </select></label
+            >
+          </article>
+        </section>
+        <p v-if="errorMessage" class="setting-error" role="alert">{{ errorMessage }}</p>
+        <div class="ui-actions ui-actions--end">
+          <button
+            class="button button-primary"
+            type="button"
+            :disabled="
+              !addresses.length ||
+              changeStore.previewStatus === 'loading' ||
+              changeStore.baselineNeedsRefresh
+            "
+            @click="preview"
+          >
+            {{ changeStore.previewStatus === 'loading' ? '계산 중…' : '변경 내용 확인' }}
+          </button>
+        </div>
+      </template>
     </template>
   </section>
 </template>
