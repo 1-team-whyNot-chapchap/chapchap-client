@@ -1,6 +1,6 @@
 <script setup>
-import { computed, watch } from 'vue'
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { computed, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { authSession } from '../../../common/api/http.js'
 import { CheckCircle2, Info } from 'lucide-vue-next'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
@@ -25,8 +25,9 @@ watch(
   () => changeStore.$reset(),
   { flush: 'sync' },
 )
-onBeforeRouteLeave((to) => {
-  if (to.name !== 'wf-024') changeStore.$reset()
+onUnmounted(() => {
+  // 이동 중에는 결과를 유지하고, 입력 화면으로 돌아갈 때는 작성 내용도 보존한다.
+  if (router.currentRoute.value.name !== 'wf-024') changeStore.$reset()
 })
 const comparison = computed(() =>
   changeStore.baselineStatus === 'success' && addressStore.listStatus === 'success'
@@ -156,7 +157,7 @@ async function submit() {
     >
     <section v-else class="ui-empty result" role="status">
       <CheckCircle2 :size="48" aria-hidden="true" />
-      <h1>설정 변경 결과를 확인하세요.</h1>
+      <h1>변경이 완료되었어요.</h1>
       <p>
         {{ result.effectiveStartDate }}부터 적용됩니다. {{ differenceLabel(result.differenceType) }}
         {{ currency(result.differenceAmount) }}
