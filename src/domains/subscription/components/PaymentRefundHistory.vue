@@ -4,6 +4,11 @@ import { useRoute } from 'vue-router'
 import PageBackButton from '../../../common/components/navigation/PageBackButton.vue'
 import { displayDateTime } from '../../../common/utils/displayDate.js'
 import { usePaymentRefundHistoryStore } from '../stores/usePaymentRefundHistoryStore.js'
+import {
+  displayHistoryAmount,
+  showsOriginalAmounts,
+  paymentCardLabel,
+} from '../paymentDetailDisplay.js'
 
 const props = defineProps({ kind: { type: String, required: true }, detail: Boolean })
 const route = useRoute()
@@ -68,7 +73,8 @@ const refundStatuses = {
   FAILED: '환불 실패',
   REVIEW_REQUIRED: '확인 필요',
 }
-const amount = (value) => `${Number(value ?? 0).toLocaleString('ko-KR')}원`
+const amount = (value) =>
+  props.detail ? displayHistoryAmount(value) : `${Number(value ?? 0).toLocaleString('ko-KR')}원`
 const itemId = (item) => item?.paymentId || item?.refundId
 const itemDate = (item) => item?.occurredAt || item?.requestedAt
 const typeLabel = (item) =>
@@ -97,7 +103,7 @@ watch(
   () => [props.kind, props.detail, routeId.value],
   ([, detail, id]) => {
     if (detail && typeof id === 'string') config.value.loadDetail(id)
-    else if (!detail) config.value.loadList()
+    else if (!detail) config.value.loadList(true)
   },
   { immediate: true },
 )
@@ -112,9 +118,7 @@ watch(
     <header class="page-intro">
       <p class="section-kicker">구독 이용 내역</p>
       <h1>{{ config.name }}{{ detail ? ' 상세' : '' }}</h1>
-      <p>
-        {{ detail ? '서버가 기록한 처리 결과를 확인하세요.' : '기간별 처리 내역을 확인하세요.' }}
-      </p>
+      <p v-if="!detail">기간별 처리 내역을 확인하세요.</p>
     </header>
 
     <section v-if="detail && typeof routeId !== 'string'" class="ui-empty" role="alert">
@@ -147,14 +151,12 @@ watch(
       <section class="history-card">
         <div class="history-card__heading">
           <div>
-            <p>{{ displayDateTime(itemDate(config.item)) }}</p>
+            <p v-if="kind === 'payments'">{{ displayDateTime(itemDate(config.item)) }}</p>
             <h2>{{ typeLabel(config.item) }}</h2>
           </div>
           <span class="mini-badge">{{ statusLabel(config.item) }}</span>
         </div>
-        <strong>{{
-          amount(kind === 'payments' ? config.item.amount : config.item.refundedAmount)
-        }}</strong>
+        <strong v-if="kind === 'payments'">{{ amount(config.item.amount) }}</strong>
       </section>
       <section v-if="kind === 'payments'" class="history-card">
         <h2>결제 정보</h2>
@@ -163,38 +165,19 @@ watch(
             <dt>결제 대상 기간</dt>
             <dd>{{ config.item.periodStartDate }} ~ {{ config.item.periodEndDate }}</dd>
           </div>
-          <div>
+          <div v-if="showsOriginalAmounts(config.item)">
             <dt>원 결제 금액</dt>
             <dd>{{ amount(config.item.originalPaymentAmount) }}</dd>
           </div>
-          <div>
+          <div v-if="showsOriginalAmounts(config.item)">
             <dt>누적 취소 금액</dt>
             <dd>{{ amount(config.item.cumulativeCancelAmount) }}</dd>
           </div>
-          <div>
-            <dt>추가 취소 가능 금액</dt>
-            <dd>{{ amount(config.item.cancelableAmount) }}</dd>
+          <div v-if="paymentCardLabel(config.item)">
+            <dt>결제 수단</dt>
+            <dd>{{ paymentCardLabel(config.item) }}</dd>
           </div>
         </dl>
-      </section>
-      <section v-if="kind === 'payments'" class="history-card">
-        <h2>처리 시도</h2>
-        <div v-if="!config.item.attempts.length" class="ui-empty">표시할 처리 시도가 없어요.</div>
-        <article
-          v-for="attempt in config.item.attempts"
-          :key="attempt.attemptSequence"
-          class="attempt-card"
-        >
-          <div>
-            <strong>{{ attempt.attemptSequence }}차 시도</strong
-            ><span class="mini-badge">{{ attempt.result === 'SUCCESS' ? '성공' : '실패' }}</span>
-          </div>
-          <p>{{ displayDateTime(attempt.requestedAt) }} · {{ amount(attempt.requestedAmount) }}</p>
-          <p v-if="attempt.respondedAt">응답 {{ displayDateTime(attempt.respondedAt) }}</p>
-          <p v-if="attempt.cardCompany || attempt.maskedCardNumber">
-            {{ [attempt.cardCompany, attempt.maskedCardNumber].filter(Boolean).join(' · ') }}
-          </p>
-        </article>
       </section>
       <section v-if="kind === 'refunds'" class="history-card">
         <h2>환불 결과</h2>
@@ -223,8 +206,8 @@ watch(
           </div>
         </dl>
       </section>
-      <section v-if="kind === 'refunds'" class="history-card">
-        <h2>연결된 원 결제 취소 거래</h2>
+      <details v-if="kind === 'refunds'" :key="routeId" class="history-card">
+        <summary>환불 처리 내역 ({{ config.item.cancellations.length }}건)</summary>
         <div v-if="!config.item.cancellations.length" class="ui-empty">
           연결된 취소 거래가 없어요.
         </div>
@@ -246,7 +229,7 @@ watch(
             >결제 거래 보기</RouterLink
           >
         </article>
-      </section>
+      </details>
     </template>
 
     <template v-else>

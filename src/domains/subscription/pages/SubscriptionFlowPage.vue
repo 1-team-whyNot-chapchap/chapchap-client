@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle2, Minus, Plus, Truck } from 'lucide-vue-next'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
@@ -17,6 +17,7 @@ import { useAddressStore } from '../stores/useAddressStore.js'
 import { useFirstSubscriptionStore } from '../stores/useFirstSubscriptionStore.js'
 import { usePlanStore } from '../stores/usePlanStore.js'
 import PaymentMethodPanel from '../components/PaymentMethodPanel.vue'
+import SubscriptionAddressCreateModal from '../components/SubscriptionAddressCreateModal.vue'
 import SubscriptionScheduleSelector from '../components/SubscriptionScheduleSelector.vue'
 import { authSession } from '../../../common/api/http.js'
 import { recoverAbandonedBilling } from '../mobileBillingReturn.js'
@@ -40,6 +41,8 @@ if (props.step === 5 && typeof window !== 'undefined') {
 }
 const planStore = usePlanStore()
 const paymentPanel = ref(null)
+const addressAddButton = ref(null)
+const isAddressCreateOpen = ref(false)
 const paymentReady = ref(false)
 const checkingPayment = ref(false)
 const agreeingTerms = ref(false)
@@ -176,6 +179,11 @@ function changeQuantity(weekday, offset) {
 
 function selectedAddress(addressId) {
   return addressById.value.get(addressId)
+}
+
+function updateAddressCreateVisible(value) {
+  isAddressCreateOpen.value = value
+  if (!value) nextTick(() => addressAddButton.value?.focus())
 }
 
 function formatCurrency(value) {
@@ -401,11 +409,12 @@ async function submit() {
               <p>구독을 신청하려면 배송지를 하나 이상 등록해 주세요.</p>
             </section>
             <button
+              ref="addressAddButton"
               class="button button-outline"
               type="button"
-              @click="router.push({ name: 'wf-028' })"
+              @click="isAddressCreateOpen = true"
             >
-              배송지 관리
+              배송지 추가
             </button>
           </section>
           <section v-else-if="step === 3" class="flow-panel">
@@ -632,6 +641,10 @@ async function submit() {
         </template>
       </template>
     </DesignPreview>
+    <SubscriptionAddressCreateModal
+      :visible="isAddressCreateOpen"
+      @update:visible="updateAddressCreateVisible"
+    />
   </div>
 </template>
 

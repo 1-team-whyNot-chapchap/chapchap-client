@@ -212,16 +212,27 @@ async function remove() {
             >연락처<input v-model.trim="form.recipientPhone" type="tel" required maxlength="20"
           /></label>
           <label class="ui-field"
-            >우편번호<input v-model.trim="form.postalCode" required maxlength="10"
-          /></label>
+            >우편번호<input
+              v-model.trim="form.postalCode"
+              required
+              readonly
+              maxlength="10"
+              aria-describedby="address-edit-location-note"
+            />
+          </label>
           <label class="ui-field"
             >도로명 주소<textarea
               v-model.trim="form.addressLine1"
               required
+              readonly
               maxlength="255"
               rows="3"
+              aria-describedby="address-edit-location-note"
             />
           </label>
+          <p id="address-edit-location-note" class="ui-muted">
+            주소와 우편번호는 수정할 수 없어요.
+          </p>
           <label class="ui-field"
             >상세 주소 (선택)<input v-model.trim="form.addressLine2" maxlength="255"
           /></label>
@@ -311,5 +322,11 @@ async function remove() {
   padding: 0;
   margin: 0;
   min-width: 0;
+}
+
+.address-fields :is(input, textarea)[readonly] {
+  cursor: not-allowed;
+  background: var(--color-background);
+  color: var(--color-text-muted);
 }
 </style>
