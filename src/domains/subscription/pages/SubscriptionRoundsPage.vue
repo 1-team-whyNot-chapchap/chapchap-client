@@ -224,9 +224,7 @@ function openDateOrders(date) {
                 <small v-if="cell.holidayName" class="order-calendar__holiday">
                   {{ cell.holidayName }}
                 </small>
-                <span class="order-calendar__marker"
-                  ><span aria-hidden="true">●</span> 주문 있음</span
-                >
+                <span class="order-calendar__marker" aria-label="주문 있음"></span>
               </button>
               <template v-else>
                 <strong>{{ cell.day }}</strong>
@@ -405,15 +403,11 @@ function openDateOrders(date) {
   font-size: var(--font-caption);
 }
 .order-calendar__marker {
-  width: fit-content;
-  padding: 4px 6px;
-  border-radius: 999px;
-  background: var(--color-primary-soft);
-  color: var(--color-primary-pressed);
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
+  width: 6px;
+  height: 6px;
+  margin: 4px 0 0 2px;
+  border-radius: 50%;
+  background: var(--color-primary-pressed);
 }
 .order-calendar__notice {
   margin: 16px 0 0;
@@ -485,9 +479,6 @@ function openDateOrders(date) {
   .order-calendar__day {
     min-height: 64px;
     padding: 4px;
-  }
-  .order-calendar__marker {
-    font-size: 9px;
   }
   .order-card {
     align-items: flex-start;
