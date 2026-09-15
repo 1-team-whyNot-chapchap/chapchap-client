@@ -171,6 +171,50 @@ async function withFlow(step, run, options = {}) {
   }
 }
 
+test('약관 펼치기와 동의는 독립적이고 본문 전문을 보존한다', async () => {
+  await withFlow(
+    4,
+    async (ctx) => {
+      const toggles = () => flatten(ctx.root).filter((node) => node.props.class === 'term-toggle')
+      const checks = () =>
+        flatten(ctx.root).filter((node) => node.type === 'input' && node.props.type === 'checkbox')
+      assert.equal(toggles().length, 2)
+      assert.ok(toggles().every((node) => node.props['aria-expanded'] === false))
+      assert.ok(!textOf(ctx.root).includes('첫째 전문'))
+      toggles()[0].props.onClick()
+      await settle()
+      assert.ok(textOf(ctx.root).includes('첫째 전문\n둘째 줄'))
+      assert.ok(!ctx.application.agreedTerms.A)
+      assert.equal(toggles()[1].props['aria-expanded'], false)
+      checks()[0].props.onChange({ target: { checked: true } })
+      await settle()
+      assert.equal(toggles()[0].props['aria-expanded'], true)
+      toggles()[1].props.onClick()
+      await settle()
+      assert.ok(toggles().every((node) => node.props['aria-expanded'] === true))
+      toggles()[0].props.onClick()
+      await settle()
+      assert.equal(ctx.application.agreedTerms.A, true)
+      assert.ok(!textOf(ctx.root).includes('첫째 전문'))
+      assert.ok(textOf(ctx.root).includes('다른 전문'))
+      assert.equal(ctx.quotes(), 0)
+    },
+    {
+      weekday: true,
+      address: true,
+      getRequiredTerms: async () => [
+        { termsType: 'A', version: '1', title: '비대면 보관 약관', content: '첫째 전문\n둘째 줄' },
+        {
+          termsType: 'B',
+          version: '2',
+          title: '구독 서비스 이용 및 정기결제 약관',
+          content: '다른 전문',
+        },
+      ],
+    },
+  )
+})
+
 test('실제 컴포넌트: 빈 신청으로 2~5단계 진입 시 모두 1단계로 이동하고 견적을 호출하지 않는다', async () => {
   for (const step of [2, 3, 4, 5])
     await withFlow(step, async (ctx) => {
