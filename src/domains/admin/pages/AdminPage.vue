@@ -17,7 +17,7 @@ const screens = {
   offdays: ['휴무·제외 관리', '라이더의 휴무 신청과 제외 일정을 검토합니다.', '신청 상세'],
   roles: ['역할 관리', '운영 권한과 역할 부여 현황을 확인합니다.', '역할 상세'],
   accounts: ['관리자 계정', '관리자 계정의 상태와 권한을 관리합니다.', '계정 상세'],
-  audit: ['감사 로그', '운영 변경 이력과 수행자를 확인합니다.', '로그 상세'],
+  audit: ['감사 로그', '운영 변경 이력과 관리자를 확인합니다.', '로그 상세'],
 }
 const current = computed(() => screens[props.screen] ?? screens.dashboard)
 const tableConfigs = {

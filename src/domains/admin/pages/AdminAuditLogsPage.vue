@@ -153,7 +153,7 @@ function changePage(delta) {
 <template>
   <AdminFrame
     title="감사 이력"
-    description="실제 운영 기록에서 작업 대상과 수행자, 처리 결과를 확인합니다."
+    description="실제 운영 기록에서 작업 대상과 관리자, 처리 결과를 확인합니다."
   >
     <div class="audit-toolbar">
       <div class="ui-actions" role="group" aria-label="감사 서비스">
@@ -208,7 +208,7 @@ function changePage(delta) {
                 <th>일시</th>
                 <th>작업</th>
                 <th>대상</th>
-                <th>수행자 ID</th>
+                <th>관리자 ID</th>
                 <th>결과</th>
                 <th>상세</th>
               </tr>
@@ -249,7 +249,7 @@ function changePage(delta) {
     <Dialog v-model:visible="open" modal header="감사 기록 상세" :pt="dialogPt" :draggable="false"
       ><div v-if="selected" class="ui-stack">
         <p>{{ time(selected.at) }} · {{ label(selected.action) }}</p>
-        <p>대상: {{ selected.target }} · 수행자: {{ selected.actor }}</p>
+        <p>대상: {{ selected.target }} · 관리자: {{ selected.actor }}</p>
         <p>결과: {{ label(selected.result) }}</p>
         <p v-if="selected.traceId">추적 ID: {{ selected.traceId }}</p>
         <dl class="audit-detail-list">
