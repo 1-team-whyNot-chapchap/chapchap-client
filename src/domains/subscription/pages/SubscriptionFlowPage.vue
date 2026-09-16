@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CheckCircle2, Minus, Plus, Truck } from 'lucide-vue-next'
+import { CheckCircle2, ChevronDown, Minus, Plus, Truck } from 'lucide-vue-next'
 import DesignPreview from '../../../common/components/feedback/DesignPreview.vue'
 import {
   formatSubscriptionAddress,
@@ -46,6 +46,8 @@ const isAddressCreateOpen = ref(false)
 const paymentReady = ref(false)
 const checkingPayment = ref(false)
 const agreeingTerms = ref(false)
+const expandedTerms = ref({})
+const termKey = (term) => `${term.termsType}:${term.version}`
 const entryStatus = ref('checking')
 const entryError = ref('')
 let initialization = 0
@@ -500,21 +502,43 @@ async function submit() {
             </section>
             <section v-else class="review-card">
               <h2>필수 약관</h2>
-              <label
+              <div
                 v-for="term in application.requiredTerms"
                 :key="`${term.termsType}:${term.version}`"
                 class="term-item"
-                ><input
-                  :checked="application.agreedTerms[term.termsType]"
-                  type="checkbox"
-                  :disabled="agreeingTerms"
-                  @change="application.setTermAgreement(term.termsType, $event.target.checked)"
-                /><span
-                  ><strong>[필수] {{ term.title }}</strong
-                  ><small>{{ term.content }}</small
-                  ><small>버전 {{ term.version }}</small></span
-                ></label
               >
+                <div class="term-header">
+                  <input
+                    :checked="application.agreedTerms[term.termsType]"
+                    :aria-label="`[필수] ${term.title} 동의`"
+                    type="checkbox"
+                    :disabled="agreeingTerms"
+                    @change="application.setTermAgreement(term.termsType, $event.target.checked)"
+                  />
+                  <button
+                    type="button"
+                    class="term-toggle"
+                    :aria-expanded="Boolean(expandedTerms[termKey(term)])"
+                    :aria-controls="`term-content-${termKey(term)}`"
+                    @click="expandedTerms[termKey(term)] = !expandedTerms[termKey(term)]"
+                  >
+                    <strong>[필수] {{ term.title }}</strong>
+                    <ChevronDown
+                      :size="20"
+                      aria-hidden="true"
+                      :class="{ 'is-expanded': expandedTerms[termKey(term)] }"
+                    />
+                  </button>
+                </div>
+                <div
+                  v-if="expandedTerms[termKey(term)]"
+                  :id="`term-content-${termKey(term)}`"
+                  class="term-content"
+                >
+                  <small>{{ term.content }}</small>
+                  <small>버전 {{ term.version }}</small>
+                </div>
+              </div>
             </section>
           </section>
           <section v-else-if="step === 5" class="flow-panel">
@@ -808,16 +832,58 @@ async function submit() {
   text-align: right;
 }
 .term-item {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
   gap: 10px;
   padding: 14px;
   border-radius: 12px;
   background: var(--color-primary-soft);
 }
-.term-item span {
+.term-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.term-header input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+.term-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.term-toggle svg {
+  flex-shrink: 0;
+}
+.term-toggle svg.is-expanded {
+  transform: rotate(180deg);
+}
+.term-toggle:focus-visible,
+.term-header input:focus-visible {
+  outline: 2px solid var(--color-primary-pressed);
+  outline-offset: 3px;
+}
+.term-content {
   display: grid;
-  gap: 4px;
+  gap: 8px;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .term-item small {
   color: var(--color-text-muted);

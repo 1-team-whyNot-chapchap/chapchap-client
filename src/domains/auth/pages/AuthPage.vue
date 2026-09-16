@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { socialLoginUrl } from '../../../common/api/http.js'
 const route = useRoute()
 const emit = defineEmits(['navigate'])
@@ -62,10 +62,6 @@ function startSocial(provider) {
             로그인이 만료되었거나 계정 상태가 바뀌었습니다. 같은 소셜 계정으로 다시 로그인해 주세요.
           </p>
           <p class="social-entry__note">가입한 카카오·구글 계정으로 로그인해 주세요.</p>
-          <div class="rider-login-entry">
-            <p>라이더로 등록하거나 배송 업무를 시작하시나요?</p>
-            <RouterLink :to="{ name: 'rider-login' }">라이더 로그인</RouterLink>
-          </div>
         </div>
       </section>
     </div>
@@ -217,28 +213,6 @@ function startSocial(provider) {
   margin: 24px 0 0;
   color: var(--color-text-muted);
   font-size: var(--font-caption);
-}
-.rider-login-entry {
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  margin-top: 22px;
-  padding-top: 20px;
-  border-top: 1px solid var(--color-border);
-}
-.rider-login-entry p {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-caption);
-}
-.rider-login-entry a {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  padding-inline: 12px;
-  color: var(--color-primary-pressed);
-  font-weight: 800;
-  text-underline-offset: 3px;
 }
 .social-preview {
   padding: 12px;

@@ -237,8 +237,17 @@ defineExpose({ verifyCurrent: manager.verifyCurrent })
 
 <style scoped>
 .payment-method-actions {
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 12px;
+  justify-content: space-between;
+}
+.payment-method-actions p {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.payment-method-actions .button {
+  margin-left: auto;
 }
 .payment-method-cards {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
