@@ -34,7 +34,10 @@ onUnmounted(() => {
   >
     <AdminStatistics />
     <div class="ui-grid work-home-grid">
-      <section v-if="authSession.state.user?.role === 'ADMIN'" class="ui-surface ui-stack">
+      <section
+        v-if="['ADMIN', 'SUPER_ADMIN'].includes(authSession.state.user?.role)"
+        class="ui-surface ui-stack"
+      >
         <h2>배송 운영</h2>
         <p>배정 그룹과 배송 예외는 각 업무 목록에서 확인할 수 있습니다.</p>
         <div class="ui-actions">
@@ -42,6 +45,8 @@ onUnmounted(() => {
             >배송 그룹 보기</RouterLink
           ><RouterLink class="button button-secondary" to="/admin/delivery-operations"
             >운영 예외 보기</RouterLink
+          ><RouterLink class="button button-secondary" to="/admin/rider-operations"
+            >라이더 일정·지역 관리</RouterLink
           >
         </div>
       </section>

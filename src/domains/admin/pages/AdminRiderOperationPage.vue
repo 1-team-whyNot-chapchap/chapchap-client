@@ -231,14 +231,10 @@ onMounted(load)
 <template>
   <AdminFrame
     title="라이더 운영"
-    description="배송 그룹에서 선택한 라이더의 일정과 담당 지역을 확인합니다."
-    current="admin-delivery-groups"
+    description="선택한 라이더의 일정과 담당 지역을 확인합니다."
+    current="admin-rider-operations"
   >
-    <RouterLink
-      class="ops-link"
-      :to="rider ? '/admin/delivery-groups/' + rider.groupId : '/admin/delivery-groups'"
-      >← 배송 그룹으로</RouterLink
-    >
+    <RouterLink class="ops-link" to="/admin/rider-operations">← 라이더 목록으로</RouterLink>
     <div v-if="!rider" class="ui-surface ui-empty">
       <h2>라이더를 다시 선택해 주세요.</h2>
       <p>
