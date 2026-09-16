@@ -145,7 +145,7 @@ const router = createRouter({
       path: '/admin/password/initial',
       name: 'admin-initial-password',
       component: AdminPasswordPage,
-      meta: { layout: 'minimal' },
+      meta: { area: 'admin', layout: 'minimal' },
     },
     { path: '/', name: 'home', component: HomePage },
     { path: '/help/chat', name: 'consultation-design', component: ConsultationDesignPage },

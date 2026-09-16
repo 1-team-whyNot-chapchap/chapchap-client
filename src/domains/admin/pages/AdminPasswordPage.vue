@@ -70,7 +70,7 @@ async function review() {
 }
 </script>
 <template>
-  <div class="admin-layout">
+  <div class="admin-layout" :class="{ 'admin-layout--initial': initial }">
     <AdminSidebar
       v-if="!initial"
       current-route="admin-password"
@@ -133,6 +133,14 @@ async function review() {
   </div>
 </template>
 <style scoped>
+.admin-layout--initial {
+  grid-template-columns: minmax(0, 1fr);
+}
+.admin-layout--initial .admin-main {
+  max-width: 680px;
+  align-self: center;
+  padding-block: clamp(32px, 8vh, 72px);
+}
 .password-panel {
   max-width: 560px;
   margin-inline: auto;
