@@ -296,6 +296,12 @@ const router = createRouter({
       meta: { area: 'admin' },
     },
     {
+      path: '/admin/rider-operations',
+      name: 'admin-rider-operations',
+      component: () => import('../domains/admin/pages/AdminRiderOperationListPage.vue'),
+      meta: { area: 'admin' },
+    },
+    {
       path: '/admin/riders/:riderId',
       name: 'admin-rider-operation',
       component: () => import('../domains/admin/pages/AdminRiderOperationPage.vue'),

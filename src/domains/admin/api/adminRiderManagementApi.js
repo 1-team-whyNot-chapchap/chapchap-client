@@ -22,6 +22,9 @@ const query = (filters) =>
 
 export function createAdminRiderManagementApi(http) {
   return {
+    async listRiders() {
+      return responseData(await http.get(ridersPath))
+    },
     async getRiderDetail(riderId) {
       return responseData(await http.get(numericPath(ridersPath, riderId, '기사')))
     },
